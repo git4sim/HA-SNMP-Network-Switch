@@ -10,7 +10,14 @@ _LOGGER = logging.getLogger(__name__)
 #    is only imported lazily (inside _make_client) so this never runs
 #    during package init before requirements are installed.
 
-from pysnmp.hlapi.v3arch.asyncio import (
+# pysnmp 6.x: command functions are in hlapi.asyncio (compat layer),
+# data/auth objects are in hlapi.v3arch.asyncio.
+from pysnmp.hlapi.asyncio import (  # command functions
+    getCmd,
+    nextCmd,
+    setCmd,
+)
+from pysnmp.hlapi.v3arch.asyncio import (  # data/auth objects
     CommunityData,
     ContextData,
     ObjectIdentity,
@@ -18,9 +25,6 @@ from pysnmp.hlapi.v3arch.asyncio import (
     SnmpEngine,
     UdpTransportTarget,
     UsmUserData,
-    getCmd,
-    nextCmd,
-    setCmd,
 )
 from pysnmp.proto.rfc1902 import Integer, OctetString
 
