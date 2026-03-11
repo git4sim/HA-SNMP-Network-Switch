@@ -1,39 +1,134 @@
-"""SNMP Client for network switches — supports v1, v2c and v3 (auth/priv)."""
+"""SNMP Client — compatible with pysnmp 4.x and pysnmp-lextudio 6.x."""
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from pysnmp.hlapi.asyncio import (
-    CommunityData,
-    ContextData,
-    ObjectIdentity,
-    ObjectType,
-    SnmpEngine,
-    UdpTransportTarget,
-    UsmUserData,
-    getCmd,
-    nextCmd,
-    setCmd,
-)
-from pysnmp.proto.rfc1902 import Integer, OctetString
+_LOGGER = logging.getLogger(__name__)
 
-# SNMPv3 auth protocol imports
-from pysnmp.hlapi import (
-    usmHMACMD5AuthProtocol,
-    usmHMACSHAAuthProtocol,
-    usmHMAC128SHA224AuthProtocol,
-    usmHMAC192SHA256AuthProtocol,
-    usmHMAC256SHA384AuthProtocol,
-    usmHMAC384SHA512AuthProtocol,
-    usmNoAuthProtocol,
-    usmDESPrivProtocol,
-    usm3DESEDEPrivProtocol,
-    usmAesCfb128Protocol,
-    usmAesCfb192Protocol,
-    usmAesCfb256Protocol,
-    usmNoPrivProtocol,
-)
+# ── pysnmp version compatibility shim ─────────────────────────────────────
+#
+# pysnmp 4.x / pysnmplib:
+#   from pysnmp.hlapi.asyncio import getCmd, CommunityData, UsmUserData, ...
+#   from pysnmp.hlapi import usmHMACMD5AuthProtocol, ...
+#
+# pysnmp-lextudio 6.x:
+#   from pysnmp.hlapi.v3arch.asyncio import getCmd, CommunityData, UsmUserData, ...
+#   usmHMACMD5AuthProtocol removed (MD5 deprecated); others moved to different paths
+#
+# Strategy: try 6.x path first, fall back to 4.x.
+
+try:
+    # pysnmp-lextudio 6.x
+    from pysnmp.hlapi.v3arch.asyncio import (  # type: ignore[import]
+        CommunityData,
+        ContextData,
+        ObjectIdentity,
+        ObjectType,
+        SnmpEngine,
+        UdpTransportTarget,
+        UsmUserData,
+        getCmd,
+        nextCmd,
+        setCmd,
+    )
+    _PYSNMP_V6 = True
+    _LOGGER.debug("snmp_switch: using pysnmp 6.x (v3arch.asyncio) API")
+except ImportError:
+    # pysnmp 4.x / pysnmplib
+    from pysnmp.hlapi.asyncio import (  # type: ignore[import]
+        CommunityData,
+        ContextData,
+        ObjectIdentity,
+        ObjectType,
+        SnmpEngine,
+        UdpTransportTarget,
+        UsmUserData,
+        getCmd,
+        nextCmd,
+        setCmd,
+    )
+    _PYSNMP_V6 = False
+    _LOGGER.debug("snmp_switch: using pysnmp 4.x (hlapi.asyncio) API")
+
+from pysnmp.proto.rfc1902 import Integer, OctetString  # available in both versions
+
+# ── Auth / Priv protocol objects ───────────────────────────────────────────
+#
+# In pysnmp 6.x many protocol constants were renamed or removed.
+# We build a safe compatibility layer here.
+
+def _import_proto(paths: list[str], fallback=None):
+    """Try multiple import paths, return first that works or fallback."""
+    for path in paths:
+        module, _, name = path.rpartition(".")
+        try:
+            import importlib
+            mod = importlib.import_module(module)
+            return getattr(mod, name)
+        except (ImportError, AttributeError):
+            continue
+    return fallback
+
+# noAuth / noPriv sentinels — always available
+usmNoAuthProtocol = _import_proto([
+    "pysnmp.hlapi.usmNoAuthProtocol",
+    "pysnmp.hlapi.v3arch.auth.usmNoAuthProtocol",
+    "pysnmp.proto.secmod.rfc3414.auth.usmNoAuthProtocol",
+])
+usmNoPrivProtocol = _import_proto([
+    "pysnmp.hlapi.usmNoPrivProtocol",
+    "pysnmp.hlapi.v3arch.priv.usmNoPrivProtocol",
+    "pysnmp.proto.secmod.rfc3826.priv.usmNoPrivProtocol",
+])
+
+# Auth protocols
+usmHMACMD5AuthProtocol = _import_proto([
+    "pysnmp.hlapi.usmHMACMD5AuthProtocol",
+    "pysnmp.proto.secmod.rfc3414.auth.usmHMACMD5AuthProtocol",
+])
+usmHMACSHAAuthProtocol = _import_proto([
+    "pysnmp.hlapi.usmHMACSHAAuthProtocol",
+    "pysnmp.proto.secmod.rfc3414.auth.usmHMACSHAAuthProtocol",
+])
+usmHMAC128SHA224AuthProtocol = _import_proto([
+    "pysnmp.hlapi.usmHMAC128SHA224AuthProtocol",
+    "pysnmp.proto.secmod.rfc7860.auth.usmHMAC128SHA224AuthProtocol",
+])
+usmHMAC192SHA256AuthProtocol = _import_proto([
+    "pysnmp.hlapi.usmHMAC192SHA256AuthProtocol",
+    "pysnmp.proto.secmod.rfc7860.auth.usmHMAC192SHA256AuthProtocol",
+])
+usmHMAC256SHA384AuthProtocol = _import_proto([
+    "pysnmp.hlapi.usmHMAC256SHA384AuthProtocol",
+    "pysnmp.proto.secmod.rfc7860.auth.usmHMAC256SHA384AuthProtocol",
+])
+usmHMAC384SHA512AuthProtocol = _import_proto([
+    "pysnmp.hlapi.usmHMAC384SHA512AuthProtocol",
+    "pysnmp.proto.secmod.rfc7860.auth.usmHMAC384SHA512AuthProtocol",
+])
+
+# Priv protocols
+usmDESPrivProtocol = _import_proto([
+    "pysnmp.hlapi.usmDESPrivProtocol",
+    "pysnmp.proto.secmod.rfc3414.priv.usmDESPrivProtocol",
+])
+usm3DESEDEPrivProtocol = _import_proto([
+    "pysnmp.hlapi.usm3DESEDEPrivProtocol",
+    "pysnmp.proto.secmod.rfc3414.priv.usm3DESEDEPrivProtocol",
+])
+usmAesCfb128Protocol = _import_proto([
+    "pysnmp.hlapi.usmAesCfb128Protocol",
+    "pysnmp.proto.secmod.rfc3826.priv.usmAesCfb128Protocol",
+])
+usmAesCfb192Protocol = _import_proto([
+    "pysnmp.hlapi.usmAesCfb192Protocol",
+    "pysnmp.proto.secmod.rfc3826.priv.usmAesCfb192Protocol",
+])
+usmAesCfb256Protocol = _import_proto([
+    "pysnmp.hlapi.usmAesCfb256Protocol",
+    "pysnmp.proto.secmod.rfc3826.priv.usmAesCfb256Protocol",
+])
 
 from .const import (
     SNMP_VERSION_1,
@@ -72,9 +167,7 @@ from .const import (
     OID_SYS_UPTIME,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
-_AUTH_PROTO_MAP = {
+_AUTH_PROTO_MAP: dict[str, Any] = {
     V3_AUTH_NONE:   usmNoAuthProtocol,
     V3_AUTH_MD5:    usmHMACMD5AuthProtocol,
     V3_AUTH_SHA:    usmHMACSHAAuthProtocol,
@@ -84,7 +177,7 @@ _AUTH_PROTO_MAP = {
     V3_AUTH_SHA512: usmHMAC384SHA512AuthProtocol,
 }
 
-_PRIV_PROTO_MAP = {
+_PRIV_PROTO_MAP: dict[str, Any] = {
     V3_PRIV_NONE:   usmNoPrivProtocol,
     V3_PRIV_DES:    usmDESPrivProtocol,
     V3_PRIV_3DES:   usm3DESEDEPrivProtocol,
@@ -92,6 +185,14 @@ _PRIV_PROTO_MAP = {
     V3_PRIV_AES192: usmAesCfb192Protocol,
     V3_PRIV_AES256: usmAesCfb256Protocol,
 }
+
+# Warn at import time about any protocols that couldn't be resolved
+for _k, _v in {**_AUTH_PROTO_MAP, **_PRIV_PROTO_MAP}.items():
+    if _v is None:
+        _LOGGER.warning(
+            "snmp_switch: protocol '%s' could not be imported from pysnmp — "
+            "it will not be available for selection", _k
+        )
 
 
 class SNMPSwitchClient:
@@ -101,18 +202,15 @@ class SNMPSwitchClient:
         self,
         host: str,
         port: int,
-        # v1/v2c
         community_read: str = "public",
         community_write: str | None = None,
         snmp_version: str = "2c",
-        # v3
         v3_username: str = "",
         v3_auth_protocol: str = V3_AUTH_NONE,
         v3_auth_key: str = "",
         v3_priv_protocol: str = V3_PRIV_NONE,
         v3_priv_key: str = "",
         v3_context_name: str = "",
-        # transport
         timeout: int = 5,
         retries: int = 1,
     ) -> None:
@@ -131,8 +229,6 @@ class SNMPSwitchClient:
         self.retries = retries
         self._engine = SnmpEngine()
 
-    # ── Auth object builders ────────────────────────────────────────────────
-
     def _mp_model(self) -> int:
         return 0 if self.snmp_version == SNMP_VERSION_1 else 1
 
@@ -147,15 +243,12 @@ class SNMPSwitchClient:
         return CommunityData(self.community_write or self.community_read, mpModel=self._mp_model())
 
     def _usm_user(self) -> UsmUserData:
-        """Build UsmUserData reflecting the configured security level."""
         auth_proto = _AUTH_PROTO_MAP.get(self.v3_auth_protocol, usmNoAuthProtocol)
         priv_proto = _PRIV_PROTO_MAP.get(self.v3_priv_protocol, usmNoPrivProtocol)
-
         has_auth = self.v3_auth_protocol != V3_AUTH_NONE and bool(self.v3_auth_key)
         has_priv = self.v3_priv_protocol != V3_PRIV_NONE and bool(self.v3_priv_key)
 
         if has_auth and has_priv:
-            # authPriv — most secure
             return UsmUserData(
                 userName=self.v3_username,
                 authKey=self.v3_auth_key,
@@ -164,30 +257,33 @@ class SNMPSwitchClient:
                 privProtocol=priv_proto,
             )
         if has_auth:
-            # authNoPriv
             return UsmUserData(
                 userName=self.v3_username,
                 authKey=self.v3_auth_key,
                 authProtocol=auth_proto,
             )
-        # noAuthNoPriv
         return UsmUserData(userName=self.v3_username)
 
     def _context(self) -> ContextData:
         return ContextData()
 
     async def _transport(self) -> UdpTransportTarget:
-        return await UdpTransportTarget.create(
+        if _PYSNMP_V6:
+            # pysnmp 6.x: UdpTransportTarget is async
+            return await UdpTransportTarget.create(
+                (self.host, self.port),
+                timeout=self.timeout,
+                retries=self.retries,
+            )
+        # pysnmp 4.x: UdpTransportTarget is sync
+        return UdpTransportTarget(
             (self.host, self.port),
             timeout=self.timeout,
             retries=self.retries,
         )
 
-    # ── Properties ─────────────────────────────────────────────────────────
-
     @property
     def security_level(self) -> str:
-        """Return human-readable security level string."""
         if self.snmp_version != SNMP_VERSION_3:
             return f"community ({self.snmp_version})"
         has_auth = self.v3_auth_protocol != V3_AUTH_NONE and bool(self.v3_auth_key)
@@ -204,7 +300,7 @@ class SNMPSwitchClient:
             return bool(self.v3_username)
         return bool(self.community_write)
 
-    # ── Core SNMP operations ────────────────────────────────────────────────
+    # ── Core SNMP operations ─────────────────────────────────────────────────
 
     async def get(self, oid: str) -> str | None:
         try:
@@ -306,7 +402,7 @@ class SNMPSwitchClient:
             _LOGGER.error("SET int exception [%s] %s: %s", self.host, oid, err)
             return False
 
-    # ── High-level helpers ──────────────────────────────────────────────────
+    # ── High-level helpers ───────────────────────────────────────────────────
 
     async def test_connection(self) -> bool:
         return (await self.get(OID_SYS_DESCR)) is not None
@@ -314,15 +410,14 @@ class SNMPSwitchClient:
     async def get_system_info(self) -> dict[str, Any]:
         return {
             "description": await self.get(OID_SYS_DESCR),
-            "uptime_raw": await self.get_raw(OID_SYS_UPTIME),
-            "contact": await self.get(OID_SYS_CONTACT),
-            "name": await self.get(OID_SYS_NAME),
-            "location": await self.get(OID_SYS_LOCATION),
-            "if_number": await self.get_raw(OID_IF_NUMBER),
+            "uptime_raw":  await self.get_raw(OID_SYS_UPTIME),
+            "contact":     await self.get(OID_SYS_CONTACT),
+            "name":        await self.get(OID_SYS_NAME),
+            "location":    await self.get(OID_SYS_LOCATION),
+            "if_number":   await self.get_raw(OID_IF_NUMBER),
         }
 
     async def get_interfaces(self) -> dict[int, dict[str, Any]]:
-        """Fetch full interface table (IF-MIB + ifXTable)."""
         descs          = await self.walk(OID_IF_DESCR)
         admin_statuses = await self.walk(OID_IF_ADMIN_STATUS)
         oper_statuses  = await self.walk(OID_IF_OPER_STATUS)
@@ -338,7 +433,7 @@ class SNMPSwitchClient:
         hc_out         = await self.walk(OID_IF_HC_OUT_OCTETS)
 
         def _idx(d: dict) -> dict[int, str]:
-            result = {}
+            result: dict[int, str] = {}
             for oid, val in d.items():
                 try:
                     result[int(oid.split(".")[-1])] = val
@@ -384,8 +479,6 @@ class SNMPSwitchClient:
                 "out_errors":   int(out_e_m.get(idx, 0) or 0),
             }
         return interfaces
-
-    # ── SNMP SET convenience wrappers ───────────────────────────────────────
 
     async def set_port_admin_status(self, if_index: int, enable: bool) -> bool:
         return await self.set_integer(f"{OID_IF_ADMIN_STATUS}.{if_index}", 1 if enable else 2)
