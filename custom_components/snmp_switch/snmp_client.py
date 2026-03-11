@@ -266,11 +266,8 @@ class SNMPSwitchClient:
         except Exception:
             ip = self.host  # fallback: hope it's already an IP
 
-        return UdpTransportTarget(
-            (ip, self.port),
-            timeout=self.timeout,
-            retries=self.retries,
-        )
+        # pysnmp 6.x: timeout and retries are positional, not keyword args
+        return UdpTransportTarget((ip, self.port), self.timeout, self.retries)
 
     @property
     def security_level(self) -> str:
