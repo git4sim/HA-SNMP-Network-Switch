@@ -8,8 +8,8 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import (
     CONF_COMMUNITY_READ,
@@ -40,25 +40,22 @@ from .snmp_client import SNMPSwitchClient
 
 _LOGGER = logging.getLogger(__name__)
 
+# ── Schemas ────────────────────────────────────────────────────────────────
 
-# ── Step 1: Host + Version ──────────────────────────────────────────────────
-
-STEP_BASE_SCHEMA = vol.Schema({
+STEP_USER_SCHEMA = vol.Schema({
     vol.Required(CONF_HOST): str,
     vol.Optional(CONF_PORT, default=DEFAULT_PORT): vol.All(int, vol.Range(min=1, max=65535)),
     vol.Optional(CONF_SNMP_VERSION, default=SNMP_VERSION_2C): vol.In(SNMP_VERSIONS),
     vol.Optional(CONF_NAME, default=""): str,
-    vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=10, max=3600)),
+    vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(
+        int, vol.Range(min=10, max=3600)
+    ),
 })
-
-# ── Step 2a: v1/v2c community ──────────────────────────────────────────────
 
 STEP_COMMUNITY_SCHEMA = vol.Schema({
     vol.Optional(CONF_COMMUNITY_READ, default=DEFAULT_COMMUNITY_READ): str,
     vol.Optional(CONF_COMMUNITY_WRITE, default=""): str,
 })
-
-# ── Step 2b: v3 USM credentials ───────────────────────────────────────────
 
 STEP_V3_SCHEMA = vol.Schema({
     vol.Required(CONF_V3_USERNAME): str,
@@ -70,8 +67,7 @@ STEP_V3_SCHEMA = vol.Schema({
 })
 
 
-async def _build_client(data: dict[str, Any]) -> SNMPSwitchClient:
-    """Build SNMPSwitchClient from collected form data."""
+def _make_client(data: dict[str, Any]) -> SNMPSwitchClient:
     return SNMPSwitchClient(
         host=data[CONF_HOST],
         port=data.get(CONF_PORT, DEFAULT_PORT),
@@ -88,44 +84,65 @@ async def _build_client(data: dict[str, Any]) -> SNMPSwitchClient:
 
 
 class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Multi-step Config Flow: base → community/v3 → test → create."""
+    """Multi-step Config Flow: user → community OR v3 → done."""
 
     VERSION = 1
 
     def __init__(self) -> None:
         self._data: dict[str, Any] = {}
 
-    # ── Step 1: Basic settings + version selection ─────────────────────────
+    # ── Step 1: host + version ─────────────────────────────────────────────
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
             self._data.update(user_input)
-            version = user_input.get(CONF_SNMP_VERSION, SNMP_VERSION_2C)
-            if version == SNMP_VERSION_3:
-                return await self.async_step_v3()
-            return await self.async_step_community()
+            if user_input.get(CONF_SNMP_VERSION) == SNMP_VERSION_3:
+                # Proceed to v3 credentials step
+                return self.async_show_form(
+                    step_id="v3",
+                    data_schema=STEP_V3_SCHEMA,
+                    errors={},
+                )
+            # Proceed to community step
+            return self.async_show_form(
+                step_id="community",
+                data_schema=STEP_COMMUNITY_SCHEMA,
+                errors={},
+            )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=STEP_BASE_SCHEMA,
+            data_schema=STEP_USER_SCHEMA,
             errors=errors,
-            description_placeholders={
-                "docs_url": "https://github.com/git4sim/HA-SNMP-Network-Switch"
-            },
         )
 
-    # ── Step 2a: v1/v2c community strings ─────────────────────────────────
+    # ── Step 2a: v1/v2c community ──────────────────────────────────────────
 
-    async def async_step_community(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_community(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
             self._data.update(user_input)
+            # Normalise: empty string → None
             if not self._data.get(CONF_COMMUNITY_WRITE):
                 self._data[CONF_COMMUNITY_WRITE] = None
-            return await self._test_and_create()
+
+            # Test connection
+            try:
+                client = _make_client(self._data)
+                if not await client.test_connection():
+                    errors["base"] = "cannot_connect"
+                else:
+                    return await self._create_entry(client)
+            except Exception:
+                _LOGGER.exception("Error connecting to switch")
+                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="community",
@@ -133,72 +150,67 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    # ── Step 2b: SNMPv3 USM credentials ───────────────────────────────────
+    # ── Step 2b: SNMPv3 USM ───────────────────────────────────────────────
 
-    async def async_step_v3(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_v3(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            self._data.update(user_input)
-
-            # Validate: priv requires auth
+            # Validate: privacy requires authentication
             has_auth = (
                 user_input.get(CONF_V3_AUTH_PROTOCOL, V3_AUTH_NONE) != V3_AUTH_NONE
-                and bool(user_input.get(CONF_V3_AUTH_KEY))
+                and bool(user_input.get(CONF_V3_AUTH_KEY, "").strip())
             )
             has_priv = (
                 user_input.get(CONF_V3_PRIV_PROTOCOL, V3_PRIV_NONE) != V3_PRIV_NONE
-                and bool(user_input.get(CONF_V3_PRIV_KEY))
+                and bool(user_input.get(CONF_V3_PRIV_KEY, "").strip())
             )
+
             if has_priv and not has_auth:
                 errors[CONF_V3_AUTH_KEY] = "priv_requires_auth"
             else:
-                return await self._test_and_create()
+                self._data.update(user_input)
+                try:
+                    client = _make_client(self._data)
+                    if not await client.test_connection():
+                        errors["base"] = "cannot_connect"
+                    else:
+                        return await self._create_entry(client)
+                except Exception:
+                    _LOGGER.exception("Error connecting to switch via SNMPv3")
+                    errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="v3",
             data_schema=STEP_V3_SCHEMA,
             errors=errors,
-            description_placeholders={
-                "security_levels": "noAuthNoPriv / authNoPriv / authPriv"
-            },
         )
 
-    # ── Final: test connection and create entry ────────────────────────────
+    # ── Helper: finalize entry ─────────────────────────────────────────────
 
-    async def _test_and_create(self) -> FlowResult:
-        errors: dict[str, str] = {}
-        try:
-            unique_id = f"{self._data[CONF_HOST]}:{self._data.get(CONF_PORT, DEFAULT_PORT)}"
-            await self.async_set_unique_id(unique_id)
-            self._abort_if_unique_id_configured()
+    async def _create_entry(self, client: SNMPSwitchClient) -> config_entries.FlowResult:
+        """Set unique ID and create the config entry."""
+        unique_id = f"{self._data[CONF_HOST]}:{self._data.get(CONF_PORT, DEFAULT_PORT)}"
+        await self.async_set_unique_id(unique_id)
+        self._abort_if_unique_id_configured()
 
-            client = await _build_client(self._data)
-            if not await client.test_connection():
-                errors["base"] = "cannot_connect"
-            else:
-                system_info = await client.get_system_info()
-                title = (
-                    self._data.get(CONF_NAME)
-                    or system_info.get("name")
-                    or self._data[CONF_HOST]
-                )
-                return self.async_create_entry(title=title, data=self._data)
-        except config_entries.data_entry_flow.AbortFlow:
-            raise
-        except Exception:
-            _LOGGER.exception("Unexpected error during SNMP connection test")
-            errors["base"] = "unknown"
+        system_info = await client.get_system_info()
+        title = (
+            self._data.get(CONF_NAME)
+            or system_info.get("name")
+            or self._data[CONF_HOST]
+        )
+        return self.async_create_entry(title=title, data=self._data)
 
-        # Re-show appropriate step on error
-        version = self._data.get(CONF_SNMP_VERSION, SNMP_VERSION_2C)
-        if version == SNMP_VERSION_3:
-            return self.async_show_form(step_id="v3", data_schema=STEP_V3_SCHEMA, errors=errors)
-        return self.async_show_form(step_id="community", data_schema=STEP_COMMUNITY_SCHEMA, errors=errors)
+    # ── Options flow ───────────────────────────────────────────────────────
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> SNMPSwitchOptionsFlow:
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> SNMPSwitchOptionsFlow:
         return SNMPSwitchOptionsFlow(config_entry)
 
 
@@ -208,7 +220,9 @@ class SNMPSwitchOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
         current = {**self.config_entry.data, **self.config_entry.options}
         version = current.get(CONF_SNMP_VERSION, SNMP_VERSION_2C)
 
@@ -219,16 +233,29 @@ class SNMPSwitchOptionsFlow(config_entries.OptionsFlow):
 
         if version == SNMP_VERSION_3:
             schema = vol.Schema({
-                vol.Optional(CONF_SCAN_INTERVAL, default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)):
-                    vol.All(int, vol.Range(min=10, max=3600)),
-                vol.Optional(CONF_V3_AUTH_KEY, default=current.get(CONF_V3_AUTH_KEY, "")): str,
-                vol.Optional(CONF_V3_PRIV_KEY, default=current.get(CONF_V3_PRIV_KEY, "")): str,
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                ): vol.All(int, vol.Range(min=10, max=3600)),
+                vol.Optional(
+                    CONF_V3_AUTH_KEY,
+                    default=current.get(CONF_V3_AUTH_KEY, ""),
+                ): str,
+                vol.Optional(
+                    CONF_V3_PRIV_KEY,
+                    default=current.get(CONF_V3_PRIV_KEY, ""),
+                ): str,
             })
         else:
             schema = vol.Schema({
-                vol.Optional(CONF_SCAN_INTERVAL, default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)):
-                    vol.All(int, vol.Range(min=10, max=3600)),
-                vol.Optional(CONF_COMMUNITY_WRITE, default=current.get(CONF_COMMUNITY_WRITE, "")): str,
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                ): vol.All(int, vol.Range(min=10, max=3600)),
+                vol.Optional(
+                    CONF_COMMUNITY_WRITE,
+                    default=current.get(CONF_COMMUNITY_WRITE, ""),
+                ): str,
             })
 
         return self.async_show_form(step_id="init", data_schema=schema)
