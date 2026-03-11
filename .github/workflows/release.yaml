@@ -9,6 +9,8 @@ jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +31,5 @@ jobs:
             Download `snmp_switch.zip`, extract to `config/custom_components/`, restart HA.
 
             Or use [HACS](https://hacs.xyz) for automatic updates.
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
