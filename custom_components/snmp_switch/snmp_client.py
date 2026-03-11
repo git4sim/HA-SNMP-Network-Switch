@@ -248,13 +248,21 @@ class SNMPSwitchClient:
         return ContextData()
 
     async def _transport(self) -> UdpTransportTarget:
-        # pysnmp 6.x: UdpTransportTarget.create() is a coroutine
-        # Positional args only for (host, port) — keyword args for options
-        return await UdpTransportTarget.create(
-            (self.host, self.port),
-            timeout=self.timeout,
-            retries=self.retries,
-        )
+        # pysnmp 6.x has UdpTransportTarget.create() as a coroutine.
+        # pysnmp 4.x uses the sync constructor UdpTransportTarget().
+        # Try async first, fall back to sync.
+        try:
+            return await UdpTransportTarget.create(
+                (self.host, self.port),
+                timeout=self.timeout,
+                retries=self.retries,
+            )
+        except (AttributeError, TypeError):
+            return UdpTransportTarget(  # type: ignore[call-arg]
+                (self.host, self.port),
+                timeout=self.timeout,
+                retries=self.retries,
+            )
 
     @property
     def security_level(self) -> str:
@@ -293,7 +301,7 @@ class SNMPSwitchClient:
             for varBind in varBinds:
                 return varBind[1].prettyPrint()
         except Exception as err:
-            _LOGGER.error("GET exception [%s] %s: %s", self.host, oid, err)
+            _LOGGER.error("GET exception [%s] %s: %s: %r", self.host, oid, type(err).__name__, err, exc_info=True)
         return None
 
     async def get_raw(self, oid: str) -> int | str | None:
@@ -312,7 +320,7 @@ class SNMPSwitchClient:
                 except (ValueError, TypeError):
                     return str(varBind[1])
         except Exception as err:
-            _LOGGER.error("GET_RAW exception [%s] %s: %s", self.host, oid, err)
+            _LOGGER.error("GET_RAW exception [%s] %s: %s: %r", self.host, oid, type(err).__name__, err, exc_info=True)
         return None
 
     async def walk(self, oid: str) -> dict[str, str]:
@@ -334,7 +342,7 @@ class SNMPSwitchClient:
                 for varBind in varBinds:
                     results[str(varBind[0])] = varBind[1].prettyPrint()
         except Exception as err:
-            _LOGGER.error("WALK exception [%s] %s: %s", self.host, oid, err)
+            _LOGGER.error("WALK exception [%s] %s: %s: %r", self.host, oid, type(err).__name__, err, exc_info=True)
         return results
 
     async def set_string(self, oid: str, value: str) -> bool:
@@ -356,7 +364,7 @@ class SNMPSwitchClient:
                 return False
             return True
         except Exception as err:
-            _LOGGER.error("SET string exception [%s] %s: %s", self.host, oid, err)
+            _LOGGER.error("SET string exception [%s] %s: %s: %r", self.host, oid, type(err).__name__, err, exc_info=True)
             return False
 
     async def set_integer(self, oid: str, value: int) -> bool:
@@ -378,7 +386,7 @@ class SNMPSwitchClient:
                 return False
             return True
         except Exception as err:
-            _LOGGER.error("SET int exception [%s] %s: %s", self.host, oid, err)
+            _LOGGER.error("SET int exception [%s] %s: %s: %r", self.host, oid, type(err).__name__, err, exc_info=True)
             return False
 
     # ── High-level helpers ───────────────────────────────────────────────────
