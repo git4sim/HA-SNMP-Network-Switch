@@ -9,7 +9,12 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.core import callback
-from homeassistant.exceptions import HomeAssistantError
+
+# NOTE: snmp_client is intentionally NOT imported at module level.
+# pysnmp is an external requirement that HA installs after the config flow
+# module is first loaded. A top-level import would cause an ImportError before
+# pysnmp is available, which makes HA report "invalid handler specified".
+# We import SNMPSwitchClient lazily inside the methods that need it.
 
 from .const import (
     CONF_COMMUNITY_READ,
@@ -36,7 +41,6 @@ from .const import (
     V3_PRIV_NONE,
     V3_PRIV_PROTOCOLS,
 )
-from .snmp_client import SNMPSwitchClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +48,9 @@ _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_SCHEMA = vol.Schema({
     vol.Required(CONF_HOST): str,
-    vol.Optional(CONF_PORT, default=DEFAULT_PORT): vol.All(int, vol.Range(min=1, max=65535)),
+    vol.Optional(CONF_PORT, default=DEFAULT_PORT): vol.All(
+        int, vol.Range(min=1, max=65535)
+    ),
     vol.Optional(CONF_SNMP_VERSION, default=SNMP_VERSION_2C): vol.In(SNMP_VERSIONS),
     vol.Optional(CONF_NAME, default=""): str,
     vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(
@@ -67,7 +73,9 @@ STEP_V3_SCHEMA = vol.Schema({
 })
 
 
-def _make_client(data: dict[str, Any]) -> SNMPSwitchClient:
+def _make_client(data: dict[str, Any]):
+    """Build SNMPSwitchClient — imported lazily to avoid pysnmp load-time errors."""
+    from .snmp_client import SNMPSwitchClient  # lazy import
     return SNMPSwitchClient(
         host=data[CONF_HOST],
         port=data.get(CONF_PORT, DEFAULT_PORT),
@@ -96,18 +104,15 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        errors: dict[str, str] = {}
-
         if user_input is not None:
             self._data.update(user_input)
+            # Route to the correct credentials step
             if user_input.get(CONF_SNMP_VERSION) == SNMP_VERSION_3:
-                # Proceed to v3 credentials step
                 return self.async_show_form(
                     step_id="v3",
                     data_schema=STEP_V3_SCHEMA,
                     errors={},
                 )
-            # Proceed to community step
             return self.async_show_form(
                 step_id="community",
                 data_schema=STEP_COMMUNITY_SCHEMA,
@@ -117,10 +122,10 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=STEP_USER_SCHEMA,
-            errors=errors,
+            errors={},
         )
 
-    # ── Step 2a: v1/v2c community ──────────────────────────────────────────
+    # ── Step 2a: v1/v2c community strings ─────────────────────────────────
 
     async def async_step_community(
         self, user_input: dict[str, Any] | None = None
@@ -129,11 +134,9 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._data.update(user_input)
-            # Normalise: empty string → None
             if not self._data.get(CONF_COMMUNITY_WRITE):
                 self._data[CONF_COMMUNITY_WRITE] = None
 
-            # Test connection
             try:
                 client = _make_client(self._data)
                 if not await client.test_connection():
@@ -141,7 +144,7 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     return await self._create_entry(client)
             except Exception:
-                _LOGGER.exception("Error connecting to switch")
+                _LOGGER.exception("Error testing SNMP connection")
                 errors["base"] = "unknown"
 
         return self.async_show_form(
@@ -150,7 +153,7 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    # ── Step 2b: SNMPv3 USM ───────────────────────────────────────────────
+    # ── Step 2b: SNMPv3 USM credentials ───────────────────────────────────
 
     async def async_step_v3(
         self, user_input: dict[str, Any] | None = None
@@ -158,7 +161,6 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Validate: privacy requires authentication
             has_auth = (
                 user_input.get(CONF_V3_AUTH_PROTOCOL, V3_AUTH_NONE) != V3_AUTH_NONE
                 and bool(user_input.get(CONF_V3_AUTH_KEY, "").strip())
@@ -179,7 +181,7 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     else:
                         return await self._create_entry(client)
                 except Exception:
-                    _LOGGER.exception("Error connecting to switch via SNMPv3")
+                    _LOGGER.exception("Error testing SNMPv3 connection")
                     errors["base"] = "unknown"
 
         return self.async_show_form(
@@ -188,10 +190,9 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    # ── Helper: finalize entry ─────────────────────────────────────────────
+    # ── Finalize ───────────────────────────────────────────────────────────
 
-    async def _create_entry(self, client: SNMPSwitchClient) -> config_entries.FlowResult:
-        """Set unique ID and create the config entry."""
+    async def _create_entry(self, client) -> config_entries.FlowResult:
         unique_id = f"{self._data[CONF_HOST]}:{self._data.get(CONF_PORT, DEFAULT_PORT)}"
         await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured()
@@ -254,7 +255,7 @@ class SNMPSwitchOptionsFlow(config_entries.OptionsFlow):
                 ): vol.All(int, vol.Range(min=10, max=3600)),
                 vol.Optional(
                     CONF_COMMUNITY_WRITE,
-                    default=current.get(CONF_COMMUNITY_WRITE, ""),
+                    default=current.get(CONF_COMMUNITY_WRITE, "") or "",
                 ): str,
             })
 
