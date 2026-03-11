@@ -2,39 +2,22 @@
   "config": {
     "step": {
       "user": {
-        "title": "SNMP Switch – Verbindung",
-        "description": "Gib Host und SNMP-Version an. Im nächsten Schritt werden die Zugangsdaten abgefragt.",
+        "title": "SNMP Switch konfigurieren",
+        "description": "Wähle SNMP-Version. Bei v3 erscheinen automatisch die USM-Felder.",
         "data": {
           "host": "IP-Adresse / Hostname",
           "port": "SNMP Port",
           "snmp_version": "SNMP Version",
-          "name": "Gerätename (leer = automatisch aus sysName)",
-          "scan_interval": "Abfrageintervall (Sekunden)"
-        }
-      },
-      "community": {
-        "title": "SNMP v1/v2c – Community Strings",
-        "description": "Für **Nur-Lesen** reicht ein Read-Community-String. Für Port-Schalten und SET-Services auch Write-Community eintragen.",
-        "data": {
+          "name": "Gerätename (leer = automatisch)",
+          "scan_interval": "Abfrageintervall (Sekunden)",
           "community_read": "Community String (Lesen)",
-          "community_write": "Community String (Schreiben, optional)"
-        }
-      },
-      "v3": {
-        "title": "SNMP v3 – USM Zugangsdaten",
-        "description": "Konfiguriere Benutzername und Sicherheitsstufe.\n\n- **noAuthNoPriv** – nur Benutzername, kein Passwort\n- **authNoPriv** – Auth-Protokoll + Passwort\n- **authPriv** – Auth + Verschlüsselung (empfohlen)",
-        "data": {
+          "community_write": "Community String (Schreiben, optional)",
           "v3_username": "Benutzername (USM)",
           "v3_auth_protocol": "Auth-Protokoll",
-          "v3_auth_key": "Auth-Passwort (≥8 Zeichen)",
+          "v3_auth_key": "Auth-Passwort",
           "v3_priv_protocol": "Verschlüsselungsprotokoll",
-          "v3_priv_key": "Verschlüsselungs-Passwort (≥8 Zeichen)",
+          "v3_priv_key": "Verschlüsselungs-Passwort",
           "v3_context_name": "Context Name (optional)"
-        },
-        "data_description": {
-          "v3_auth_protocol": "Wähle 'none' für noAuthNoPriv.",
-          "v3_priv_protocol": "Wähle 'none' für authNoPriv. Verschlüsselung erfordert Auth.",
-          "v3_context_name": "Nur nötig wenn der Switch mehrere SNMP Contexts verwendet."
         }
       }
     },
@@ -42,7 +25,8 @@
       "cannot_connect": "Verbindung fehlgeschlagen – Host nicht erreichbar oder SNMP nicht aktiv",
       "invalid_auth": "Authentifizierung fehlgeschlagen – Community String oder USM-Zugangsdaten prüfen",
       "priv_requires_auth": "Verschlüsselung (Privacy) erfordert ein Auth-Protokoll und Auth-Passwort",
-      "unknown": "Unbekannter Fehler – bitte Logs prüfen"
+      "unknown": "Unbekannter Fehler – bitte Logs prüfen",
+      "v3_username_required": "Benutzername für SNMPv3 ist erforderlich"
     },
     "abort": {
       "already_configured": "Dieser Switch ist bereits konfiguriert"
