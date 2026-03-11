@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="custom_components/snmp_switch/logo.png" alt="SNMP Network Switch" width="200">
+  <img src="custom_components/snmp_switch/logo.png" alt="SNMP Network Switch" width="180">
 </p>
 
 <h1 align="center">SNMP Network Switch</h1>
@@ -9,11 +9,34 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/YOUR_USER/ha-snmp-switch/releases"><img src="https://img.shields.io/github/v/release/YOUR_USER/ha-snmp-switch?style=for-the-badge&color=0abf53" alt="Release"></a>
-  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" alt="HACS"></a>
-  <a href="https://github.com/YOUR_USER/ha-snmp-switch/actions"><img src="https://img.shields.io/github/actions/workflow/status/YOUR_USER/ha-snmp-switch/validate.yaml?style=for-the-badge&label=CI" alt="CI"></a>
+  <a href="https://github.com/git4sim/HA-SNMP-Network-Switch/releases">
+    <img src="https://img.shields.io/github/v/release/git4sim/HA-SNMP-Network-Switch?style=for-the-badge&color=0abf53" alt="Release">
+  </a>
+  <a href="https://github.com/hacs/integration">
+    <img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" alt="HACS">
+  </a>
+  <a href="https://github.com/git4sim/HA-SNMP-Network-Switch/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/git4sim/HA-SNMP-Network-Switch/validate.yaml?style=for-the-badge&label=CI" alt="CI">
+  </a>
   <img src="https://img.shields.io/badge/HA%20Version-2023.1%2B-blue?style=for-the-badge" alt="HA Version">
+  <img src="https://img.shields.io/badge/SNMP-v1%20%7C%20v2c-teal?style=for-the-badge" alt="SNMP">
 </p>
+
+---
+
+## 🚀 Installation via HACS
+
+**Empfohlener Weg – ein Klick:**
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=git4sim&repository=HA-SNMP-Network-Switch&category=integration)
+
+**Oder manuell in HACS:**
+
+1. HACS → **Integrationen** → ⋮ → *Benutzerdefinierte Repositories*
+2. URL: `https://github.com/git4sim/HA-SNMP-Network-Switch` · Kategorie: **Integration**
+3. **SNMP Network Switch** suchen → **Herunterladen**
+4. Home Assistant neu starten
+5. **Einstellungen → Geräte & Dienste → + Integration → SNMP Network Switch**
 
 ---
 
@@ -78,29 +101,7 @@ Alle Geräte mit **IF-MIB (RFC 2863)** Support funktionieren – das ist praktis
 
 ---
 
-## 📦 Installation
-
-### Via HACS *(empfohlen)*
-
-1. Stelle sicher dass [HACS](https://hacs.xyz) installiert ist
-2. Öffne HACS → **Integrationen** → Drei-Punkte-Menü → **Benutzerdefinierte Repositories**
-3. Füge `https://github.com/YOUR_USER/ha-snmp-switch` als Kategorie **Integration** hinzu
-4. Suche nach **SNMP Network Switch** und klicke **Herunterladen**
-5. Home Assistant neu starten
-
-### Manuell
-
-1. Lade die neueste `snmp_switch.zip` von den [Releases](https://github.com/YOUR_USER/ha-snmp-switch/releases) herunter
-2. Entpacke nach `config/custom_components/snmp_switch/`
-3. Starte Home Assistant neu
-
----
-
 ## ⚙️ Einrichtung
-
-1. **Einstellungen → Geräte & Dienste → + Integration hinzufügen**
-2. Nach **"SNMP Network Switch"** suchen
-3. Konfigurationsformular ausfüllen:
 
 | Feld | Pflicht | Standard | Beschreibung |
 |---|---|---|---|
@@ -116,14 +117,10 @@ Alle Geräte mit **IF-MIB (RFC 2863)** Support funktionieren – das ist praktis
 
 ## 🔧 Switch-Konfiguration
 
-Damit HA sich verbinden kann, muss SNMP auf dem Switch aktiviert sein:
-
 ### Cisco IOS / IOS-XE
 ```
 snmp-server community public RO
 snmp-server community private RW
-snmp-server location "Serverraum EG"
-snmp-server contact "IT Admin <admin@company.com>"
 ```
 
 ### HPE ProCurve / Aruba
@@ -133,12 +130,10 @@ snmp-server community "private" manager unrestricted
 ```
 
 ### Ubiquiti UniFi
-**Controller → Settings → System → SNMP**  
-Community String eintragen, SNMP aktivieren.
+**Controller → Settings → System → SNMP** → Community String eintragen
 
 ### TP-Link TL-SG Serie
-**Admin UI → SNMP → Community Config → Add**  
-`public` (Read-Only) und `private` (Read-Write)
+**Admin UI → SNMP → Community Config → Add**
 
 ### MikroTik RouterOS
 ```
@@ -179,41 +174,54 @@ automation:
           message: "Port 1 hat über 50 Fehler!"
 ```
 
-### Port-Beschriftung via Service setzen
-```yaml
-service: snmp_switch.set_port_alias
-data:
-  entry_id: "abc123"    # Aus Einstellungen → Geräte & Dienste → Integration → Entry ID
-  if_index: 5           # Port-Index
-  alias: "NAS-Server"
-```
-
 ---
 
 ## 🐛 Fehlersuche
 
-### Verbindung testen (Linux / macOS)
+### Verbindung testen
 ```bash
 snmpwalk -v2c -c public 192.168.1.1 1.3.6.1.2.1.1.1.0
 ```
 
-### Debug-Logging aktivieren
+### Debug-Logging
 ```yaml
-# configuration.yaml
 logger:
   default: warning
   logs:
     custom_components.snmp_switch: debug
 ```
 
-### Häufige Probleme
-
 | Problem | Lösung |
 |---|---|
-| *Cannot connect* | Firewall prüfen (UDP 161), SNMP auf Switch aktiviert? |
+| *Cannot connect* | Firewall prüfen (UDP 161), SNMP aktiviert? |
 | *Invalid auth* | Community String Groß-/Kleinschreibung beachten |
 | *Switch entities fehlen* | Write-Community konfiguriert? |
-| *Keine Port-Sensoren* | ifTable per `snmpwalk` testen |
+| *Keine Port-Sensoren* | ifTable per `snmpwalk` prüfen |
+
+---
+
+## 🤖 Vibecoded
+
+> *Dieses Projekt wurde vollständig mit KI-Unterstützung entwickelt – vom ersten Konzept bis zum fertigen HACS-Addon.*
+
+**Vibecoding** beschreibt den Workflow, bei dem du deine Idee in natürlicher Sprache formulierst und KI den Code schreibt. Du bleibst Architekt und Qualitätsprüfer – die KI übernimmt die Implementierung.
+
+So entstand dieses Addon:
+
+```
+"Baue eine HA Integration für SNMP Netzwerkswitches"
+        ↓
+  Vollständiger Python-Code für alle Plattformen
+  HACS-Struktur, Manifest, Config Flow, Coordinator
+  Logo generiert, README geschrieben
+  GitHub Actions Workflows erstellt
+        ↓
+  Fertig. In einem Gespräch.
+```
+
+**Stack:** [Claude](https://claude.ai) (Anthropic) · Python · Home Assistant · pysnmp
+
+Mehr zum Thema Vibecoding: [Andrej Karpathy on X](https://x.com/karpathy/status/1886192184808149383)
 
 ---
 
@@ -230,9 +238,13 @@ snmp_switch/
 ├── switch.py            # Switch-Entities (Port toggle)
 ├── button.py            # Button (Refresh)
 ├── const.py             # OIDs, Konstanten
-├── strings.json         # UI-Texte (DE)
-├── logo.png             # Integration Logo (512x512)
-└── icon.png             # HACS Icon (256x256)
+├── services.yaml        # Service-Definitionen
+├── strings.json         # UI-Texte
+├── translations/
+│   ├── de.json          # Deutsch
+│   └── en.json          # Englisch
+├── logo.png             # Integration Logo (512×512)
+└── icon.png             # HACS Icon (256×256)
 ```
 
 ---
@@ -248,16 +260,17 @@ snmp_switch/
 - UI-Setup via Config Flow
 - SNMP v1 & v2c Support
 - 64-bit Traffic Counter (ifHCInOctets / ifHCOutOctets)
+- Deutsche & Englische UI-Übersetzungen
 
 ---
 
 ## 🤝 Contributing
 
-Pull Requests sind willkommen! Bitte:
+Pull Requests sind willkommen!
+
 1. Fork erstellen
-2. Feature-Branch anlegen (`git checkout -b feature/neue-funktion`)
-3. Tests hinzufügen
-4. PR öffnen
+2. Feature-Branch anlegen: `git checkout -b feature/neue-funktion`
+3. PR öffnen gegen `main`
 
 ---
 
@@ -267,4 +280,7 @@ MIT License – siehe [LICENSE](LICENSE)
 
 ---
 
-<p align="center">Made with ❤️ for the Home Assistant community</p>
+<p align="center">
+  Made with ❤️ &amp; 🤖 for the Home Assistant community<br>
+  <sub>Vibecoded with <a href="https://claude.ai">Claude</a> · <a href="https://github.com/git4sim/HA-SNMP-Network-Switch">github.com/git4sim/HA-SNMP-Network-Switch</a></sub>
+</p>
