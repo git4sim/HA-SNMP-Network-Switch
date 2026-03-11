@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SNMP Switch konfigurieren",
+        "description": "Verbinde einen verwalteten Netzwerkswitch via SNMP.\n\nFür **Nur-Lesen** reicht ein Read-Community-String.\nFür **Port-Schalten & SET-Services** auch Write-Community eintragen.",
+        "data": {
+          "host": "IP-Adresse / Hostname",
+          "port": "SNMP Port",
+          "community_read": "Community String (Lesen)",
+          "community_write": "Community String (Schreiben, optional)",
+          "snmp_version": "SNMP Version",
+          "name": "Gerätename (leer = sysName automatisch)",
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        },
+        "data_description": {
+          "community_write": "Leer lassen für rein lesenden Zugriff. Bei Eingabe werden Port-Switches und SET-Services aktiviert.",
+          "scan_interval": "Wie oft soll HA den Switch abfragen? Minimum 10 Sekunden."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen – Host nicht erreichbar oder SNMP nicht aktiviert",
+      "invalid_auth": "Ungültiger Community String",
+      "unknown": "Unbekannter Fehler – bitte Logs prüfen"
+    },
+    "abort": {
+      "already_configured": "Dieser Switch ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SNMP Switch Optionen anpassen",
+        "data": {
+          "scan_interval": "Abfrageintervall (Sekunden)",
+          "community_write": "Community String (Schreiben)"
+        }
+      }
+    }
+  },
+  "services": {
+    "set_port_alias": {
+      "name": "Port-Beschriftung setzen",
+      "description": "Setzt den ifAlias eines Ports (Beschreibung/Label).",
+      "fields": {
+        "entry_id": {
+          "name": "Integrations-ID",
+          "description": "Entry ID der SNMP Switch Integration"
+        },
+        "if_index": {
+          "name": "Port-Index",
+          "description": "ifIndex des Ports (1-basiert)"
+        },
+        "alias": {
+          "name": "Beschriftung",
+          "description": "Neue Port-Beschriftung (z.B. 'NAS-Server')"
+        }
+      }
+    },
+    "set_sys_contact": {
+      "name": "Systemkontakt setzen",
+      "description": "Setzt sysContact auf dem Switch.",
+      "fields": {
+        "entry_id": {"name": "Integrations-ID", "description": "Entry ID"},
+        "contact": {"name": "Kontakt", "description": "Name / E-Mail des Verantwortlichen"}
+      }
+    },
+    "set_sys_location": {
+      "name": "Standort setzen",
+      "description": "Setzt sysLocation auf dem Switch.",
+      "fields": {
+        "entry_id": {"name": "Integrations-ID", "description": "Entry ID"},
+        "location": {"name": "Standort", "description": "Physischer Aufstellungsort"}
+      }
+    },
+    "set_sys_name": {
+      "name": "Systemname setzen",
+      "description": "Setzt sysName auf dem Switch.",
+      "fields": {
+        "entry_id": {"name": "Integrations-ID", "description": "Entry ID"},
+        "name": {"name": "Name", "description": "Neuer Systemname"}
+      }
+    }
+  }
+}

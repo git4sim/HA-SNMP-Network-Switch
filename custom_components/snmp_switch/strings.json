@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SNMP Switch konfigurieren",
+        "description": "Verbinde einen Netzwerkswitch via SNMP",
+        "data": {
+          "host": "IP-Adresse / Hostname",
+          "port": "SNMP Port",
+          "community_read": "Community String (Lesen)",
+          "community_write": "Community String (Schreiben, optional)",
+          "snmp_version": "SNMP Version",
+          "name": "Gerätename",
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen – Host nicht erreichbar",
+      "invalid_auth": "Ungültiger Community String",
+      "unknown": "Unbekannter Fehler"
+    },
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SNMP Switch Optionen",
+        "data": {
+          "scan_interval": "Abfrageintervall (Sekunden)",
+          "community_write": "Community String (Schreiben)"
+        }
+      }
+    }
+  }
+}

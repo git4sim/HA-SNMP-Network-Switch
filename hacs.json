@@ -1,0 +1,6 @@
+{
+  "name": "SNMP Network Switch",
+  "domains": ["sensor", "switch", "button"],
+  "iot_class": "local_polling",
+  "render_readme": true
+}

@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure SNMP Switch",
+        "description": "Connect a managed network switch via SNMP.\n\nFor **read-only** access, only a read community string is required.\nFor **port toggling & SET services**, also provide a write community.",
+        "data": {
+          "host": "IP Address / Hostname",
+          "port": "SNMP Port",
+          "community_read": "Community String (Read)",
+          "community_write": "Community String (Write, optional)",
+          "snmp_version": "SNMP Version",
+          "name": "Device name (empty = auto-detect from sysName)",
+          "scan_interval": "Poll interval (seconds)"
+        },
+        "data_description": {
+          "community_write": "Leave empty for read-only access. When set, port switches and SET services are enabled.",
+          "scan_interval": "How often should HA poll the switch? Minimum 10 seconds."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Connection failed – host unreachable or SNMP not enabled",
+      "invalid_auth": "Invalid community string",
+      "unknown": "Unknown error – check logs"
+    },
+    "abort": {
+      "already_configured": "This switch is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SNMP Switch Options",
+        "data": {
+          "scan_interval": "Poll interval (seconds)",
+          "community_write": "Community String (Write)"
+        }
+      }
+    }
+  },
+  "services": {
+    "set_port_alias": {
+      "name": "Set Port Alias",
+      "description": "Sets the ifAlias of a port.",
+      "fields": {
+        "entry_id": {"name": "Entry ID", "description": "Entry ID of the SNMP Switch integration"},
+        "if_index": {"name": "Port Index", "description": "ifIndex of the port (1-based)"},
+        "alias": {"name": "Alias", "description": "New port label (e.g. 'NAS Server')"}
+      }
+    },
+    "set_sys_contact": {
+      "name": "Set System Contact",
+      "description": "Sets sysContact on the switch.",
+      "fields": {
+        "entry_id": {"name": "Entry ID", "description": "Entry ID"},
+        "contact": {"name": "Contact", "description": "Name / email of the responsible person"}
+      }
+    },
+    "set_sys_location": {
+      "name": "Set System Location",
+      "description": "Sets sysLocation on the switch.",
+      "fields": {
+        "entry_id": {"name": "Entry ID", "description": "Entry ID"},
+        "location": {"name": "Location", "description": "Physical installation location"}
+      }
+    },
+    "set_sys_name": {
+      "name": "Set System Name",
+      "description": "Sets sysName on the switch.",
+      "fields": {
+        "entry_id": {"name": "Entry ID", "description": "Entry ID"},
+        "name": {"name": "Name", "description": "New system name"}
+      }
+    }
+  }
+}

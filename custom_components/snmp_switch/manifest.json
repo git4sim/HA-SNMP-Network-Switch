@@ -1,0 +1,12 @@
+{
+  "domain": "snmp_switch",
+  "name": "SNMP Network Switch",
+  "version": "1.0.0",
+  "documentation": "https://github.com/your-repo/ha-snmp-switch",
+  "issue_tracker": "https://github.com/your-repo/ha-snmp-switch/issues",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": ["pysnmp==6.2.6"],
+  "iot_class": "local_polling",
+  "config_flow": true
+}

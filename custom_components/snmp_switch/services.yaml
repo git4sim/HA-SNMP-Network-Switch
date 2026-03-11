@@ -1,0 +1,82 @@
+set_port_alias:
+  name: Set Port Alias
+  description: Sets the ifAlias (port description) on the switch via SNMP SET.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: The entry_id of the SNMP Switch config entry (found in Settings → Devices & Services).
+      required: true
+      example: "abc123def456"
+      selector:
+        text:
+    if_index:
+      name: Port Index
+      description: The ifIndex of the port (1-based integer).
+      required: true
+      example: 5
+      selector:
+        number:
+          min: 1
+          max: 512
+          mode: box
+    alias:
+      name: Alias
+      description: The new port description/label.
+      required: true
+      example: "NAS Server"
+      selector:
+        text:
+
+set_sys_contact:
+  name: Set System Contact
+  description: Sets sysContact on the switch via SNMP SET.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: The entry_id of the SNMP Switch config entry.
+      required: true
+      selector:
+        text:
+    contact:
+      name: Contact
+      description: Name and/or email address of the responsible person.
+      required: true
+      example: "IT Admin <admin@company.com>"
+      selector:
+        text:
+
+set_sys_location:
+  name: Set System Location
+  description: Sets sysLocation on the switch via SNMP SET.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: The entry_id of the SNMP Switch config entry.
+      required: true
+      selector:
+        text:
+    location:
+      name: Location
+      description: Physical installation location of the switch.
+      required: true
+      example: "Server Room - Rack 3"
+      selector:
+        text:
+
+set_sys_name:
+  name: Set System Name
+  description: Sets sysName on the switch via SNMP SET.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: The entry_id of the SNMP Switch config entry.
+      required: true
+      selector:
+        text:
+    name:
+      name: Name
+      description: New system name for the switch.
+      required: true
+      example: "office-switch-01"
+      selector:
+        text:
