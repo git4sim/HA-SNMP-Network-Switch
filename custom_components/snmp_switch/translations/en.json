@@ -2,26 +2,41 @@
   "config": {
     "step": {
       "user": {
-        "title": "Configure SNMP Switch",
-        "description": "Connect a managed network switch via SNMP.\n\nFor **read-only** access, only a read community string is required.\nFor **port toggling & SET services**, also provide a write community.",
+        "title": "SNMP Switch – Connection",
+        "description": "Enter the host and SNMP version. Credentials are configured in the next step.",
         "data": {
           "host": "IP Address / Hostname",
           "port": "SNMP Port",
-          "community_read": "Community String (Read)",
-          "community_write": "Community String (Write, optional)",
           "snmp_version": "SNMP Version",
           "name": "Device name (empty = auto-detect from sysName)",
           "scan_interval": "Poll interval (seconds)"
-        },
-        "data_description": {
-          "community_write": "Leave empty for read-only access. When set, port switches and SET services are enabled.",
-          "scan_interval": "How often should HA poll the switch? Minimum 10 seconds."
+        }
+      },
+      "community": {
+        "title": "SNMP v1/v2c – Community Strings",
+        "description": "Read-only access requires only a read community string.\nFor port toggling and SET services, also provide a write community.",
+        "data": {
+          "community_read": "Community String (Read)",
+          "community_write": "Community String (Write, optional)"
+        }
+      },
+      "v3": {
+        "title": "SNMP v3 – USM Credentials",
+        "description": "Configure username and security level.\n\n**noAuthNoPriv** – username only\n**authNoPriv** – auth protocol + passphrase\n**authPriv** – auth + encryption (recommended)",
+        "data": {
+          "v3_username": "Username (USM)",
+          "v3_auth_protocol": "Auth Protocol",
+          "v3_auth_key": "Auth Passphrase (≥8 chars)",
+          "v3_priv_protocol": "Privacy Protocol",
+          "v3_priv_key": "Privacy Passphrase (≥8 chars)",
+          "v3_context_name": "Context Name (optional)"
         }
       }
     },
     "error": {
       "cannot_connect": "Connection failed – host unreachable or SNMP not enabled",
-      "invalid_auth": "Invalid community string",
+      "invalid_auth": "Authentication failed – check community string or USM credentials",
+      "priv_requires_auth": "Privacy requires an auth protocol and auth passphrase",
       "unknown": "Unknown error – check logs"
     },
     "abort": {
@@ -34,7 +49,9 @@
         "title": "SNMP Switch Options",
         "data": {
           "scan_interval": "Poll interval (seconds)",
-          "community_write": "Community String (Write)"
+          "community_write": "Community String (Write)",
+          "v3_auth_key": "Update auth passphrase",
+          "v3_priv_key": "Update privacy passphrase"
         }
       }
     }
@@ -42,16 +59,15 @@
   "services": {
     "set_port_alias": {
       "name": "Set Port Alias",
-      "description": "Sets the ifAlias of a port.",
+      "description": "Sets the ifAlias of a port via SNMP SET.",
       "fields": {
-        "entry_id": {"name": "Entry ID", "description": "Entry ID of the SNMP Switch integration"},
+        "entry_id": {"name": "Entry ID", "description": "Entry ID of the SNMP Switch config entry"},
         "if_index": {"name": "Port Index", "description": "ifIndex of the port (1-based)"},
-        "alias": {"name": "Alias", "description": "New port label (e.g. 'NAS Server')"}
+        "alias": {"name": "Alias", "description": "New port label"}
       }
     },
     "set_sys_contact": {
       "name": "Set System Contact",
-      "description": "Sets sysContact on the switch.",
       "fields": {
         "entry_id": {"name": "Entry ID", "description": "Entry ID"},
         "contact": {"name": "Contact", "description": "Name / email of the responsible person"}
@@ -59,7 +75,6 @@
     },
     "set_sys_location": {
       "name": "Set System Location",
-      "description": "Sets sysLocation on the switch.",
       "fields": {
         "entry_id": {"name": "Entry ID", "description": "Entry ID"},
         "location": {"name": "Location", "description": "Physical installation location"}
@@ -67,7 +82,6 @@
     },
     "set_sys_name": {
       "name": "Set System Name",
-      "description": "Sets sysName on the switch.",
       "fields": {
         "entry_id": {"name": "Entry ID", "description": "Entry ID"},
         "name": {"name": "Name", "description": "New system name"}

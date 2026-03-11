@@ -1,141 +1,150 @@
-<p align="center">
-  <img src="custom_components/snmp_switch/logo.png" alt="SNMP Network Switch" width="180">
-</p>
+![HA-SNMP-Network-Switch Logo](logo.png)
 
-<h1 align="center">SNMP Network Switch</h1>
+# HA-SNMP-Network-Switch
 
-<p align="center">
-  Home Assistant Integration für verwaltete Netzwerkswitches via SNMP
-</p>
+**Home Assistant Integration for managed network switches via SNMP**  
+Monitor port status, traffic & errors — toggle ports — edit switch settings — directly from Home Assistant.
 
-<p align="center">
-  <a href="https://github.com/git4sim/HA-SNMP-Network-Switch/releases">
-    <img src="https://img.shields.io/github/v/release/git4sim/HA-SNMP-Network-Switch?style=for-the-badge&color=0abf53" alt="Release">
-  </a>
-  <a href="https://github.com/hacs/integration">
-    <img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" alt="HACS">
-  </a>
-  <a href="https://github.com/git4sim/HA-SNMP-Network-Switch/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/git4sim/HA-SNMP-Network-Switch/validate.yaml?style=for-the-badge&label=CI" alt="CI">
-  </a>
-  <img src="https://img.shields.io/badge/HA%20Version-2023.1%2B-blue?style=for-the-badge" alt="HA Version">
-  <img src="https://img.shields.io/badge/SNMP-v1%20%7C%20v2c-teal?style=for-the-badge" alt="SNMP">
-</p>
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg?logo=home-assistant&logoColor=white)](https://github.com/hacs/integration)
+[![Version](https://img.shields.io/github/v/release/git4sim/HA-SNMP-Network-Switch?label=version&color=blue)](https://github.com/git4sim/HA-SNMP-Network-Switch/releases)
+[![Home Assistant](https://img.shields.io/badge/HA-2023.1%2B-brightgreen?logo=home-assistant)](https://home-assistant.io)
+[![MIT License](https://img.shields.io/github/license/git4sim/HA-SNMP-Network-Switch?color=lightgrey)](https://github.com/git4sim/HA-SNMP-Network-Switch/blob/main/LICENSE)
+[![Vibecoded](https://img.shields.io/badge/vibecoded-%F0%9F%A4%96-blueviolet)](https://x.com/karpathy/status/1886192184808149383)
 
 ---
 
-## 🚀 Installation via HACS
+> [!NOTE]
+> This integration supports **SNMP v1, v2c and v3** (noAuthNoPriv / authNoPriv / authPriv).  
+> Read-only access is enough for monitoring. A write community or SNMPv3 write user enables port toggling and SET services.
 
-**Empfohlener Weg – ein Klick:**
+> [!TIP]
+> 🤖 This integration was **vibecoded** — generated with AI assistance ([Claude by Anthropic](https://anthropic.com)) and iteratively refined. It is a community project.
+
+---
+
+## Features
+
+- 📊 **System sensors** — sysDescr, sysUpTime, sysContact, sysName, sysLocation, port count
+- 🔌 **Per-port sensors** — operational status, RX/TX traffic (64-bit HC counters), error counters
+- 🔘 **Port switches** — enable/disable individual ports via `ifAdminStatus` SET
+- 🔁 **Refresh button** — trigger an immediate SNMP poll
+- ⚙️ **Services** — `set_port_alias`, `set_sys_contact`, `set_sys_location`, `set_sys_name`
+- 🔐 **Full SNMPv3 USM** — MD5 / SHA / SHA-256 / SHA-512 auth · DES / AES-128 / AES-256 privacy
+- 🛠️ **Config Flow** — multi-step UI setup, **no YAML required**
+- 📦 **HACS compatible**
+
+---
+
+## Installation via HACS
+
+Adding HA-SNMP-Network-Switch to Home Assistant can be done via HACS using this button:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=git4sim&repository=HA-SNMP-Network-Switch&category=integration)
 
-**Oder manuell in HACS:**
+> [!NOTE]
+> If the button above doesn't work, add `https://github.com/git4sim/HA-SNMP-Network-Switch` manually as a Custom Repository of type **Integration** in HACS, then search for **SNMP Network Switch** and click Download.
 
-1. HACS → **Integrationen** → ⋮ → *Benutzerdefinierte Repositories*
-2. URL: `https://github.com/git4sim/HA-SNMP-Network-Switch` · Kategorie: **Integration**
-3. **SNMP Network Switch** suchen → **Herunterladen**
-4. Home Assistant neu starten
-5. **Einstellungen → Geräte & Dienste → + Integration → SNMP Network Switch**
+After downloading, restart Home Assistant.
 
----
+### Manual Installation
 
-## 📌 Übersicht
+Copy the `custom_components/snmp_switch/` folder from the [latest release](https://github.com/git4sim/HA-SNMP-Network-Switch/releases/latest) into your HA config directory:
 
-Diese Integration bindet **verwaltete Netzwerkswitches** via **SNMP v1/v2c** in Home Assistant ein.
+```
+/config/custom_components/snmp_switch/
+```
 
-Mit nur einem Read-Community-String bekommst du vollständiges Monitoring.  
-Trägst du zusätzlich einen Write-Community-String ein, kannst du Ports direkt aus HA schalten und Geräteeigenschaften setzen.
+Restart Home Assistant.
 
 ---
 
-## ✨ Was kann die Integration?
+## Configuration
 
-### 📊 Sensoren
-| Entity | Beschreibung |
-|---|---|
-| `sensor.*_beschreibung` | Gerätebeschreibung (sysDescr) |
-| `sensor.*_uptime` | Betriebszeit in Sek. + lesbares Attribut |
-| `sensor.*_kontakt` | sysContact |
-| `sensor.*_systemname` | sysName |
-| `sensor.*_standort` | sysLocation |
-| `sensor.*_anzahl_ports` | Port-Anzahl + Ports Up/Down |
-| `sensor.*_portX_status` | Betriebsstatus pro Port |
-| `sensor.*_portX_rx` | Empfangene Bytes (HC, 64-bit) |
-| `sensor.*_portX_tx` | Gesendete Bytes (HC, 64-bit) |
-| `sensor.*_portX_fehler` | Fehler-Counter pro Port |
+Adding SNMP Network Switch to your Home Assistant instance can be done via the UI using this button:
 
-### 🔌 Switches *(nur mit Write-Community)*
-| Entity | Beschreibung |
-|---|---|
-| `switch.*_portX` | Port ein-/ausschalten (`ifAdminStatus`) |
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=snmp_switch)
 
-### 🔘 Buttons
-| Entity | Beschreibung |
-|---|---|
-| `button.*_aktualisieren` | Sofortiger SNMP-Poll |
+> [!NOTE]
+> If the button above doesn't work, go to **Settings → Devices & Services → Add Integration** and search for **SNMP Network Switch**.
 
-### ⚙️ Services *(nur mit Write-Community)*
-| Service | Beschreibung |
-|---|---|
-| `snmp_switch.set_port_alias` | Port-Beschriftung (ifAlias) setzen |
-| `snmp_switch.set_sys_contact` | sysContact setzen |
-| `snmp_switch.set_sys_location` | sysLocation setzen |
-| `snmp_switch.set_sys_name` | sysName setzen |
+The setup is a **multi-step wizard**:
 
----
+**Step 1 — Connection**
 
-## 🏷️ Unterstützte Geräte
-
-Alle Geräte mit **IF-MIB (RFC 2863)** Support funktionieren – das ist praktisch jeder verwaltete Switch:
-
-| Hersteller | Modelle | Getestet |
+| Field | Default | Description |
 |---|---|---|
-| **Cisco** | IOS, IOS-XE, NX-OS | ✅ |
-| **HPE / Aruba** | ProCurve, ArubaOS | ✅ |
-| **Ubiquiti** | UniFi USW Serie | ✅ |
-| **TP-Link** | TL-SG2xxx, TL-SG3xxx | ✅ |
-| **Netgear** | GS3xx, MS-Serie | ✅ |
-| **MikroTik** | RouterOS mit SNMP | ✅ |
-| **Andere** | Jedes IF-MIB kompatibles Gerät | ✅ |
+| IP Address / Hostname | — | Switch IP or DNS name |
+| SNMP Port | `161` | UDP port |
+| SNMP Version | `2c` | v1, v2c or v3 |
+| Device name | *(sysName)* | Display name in HA |
+| Poll interval | `30` | Seconds between polls (10–3600) |
+
+**Step 2a — v1/v2c Community Strings**
+
+| Field | Description |
+|---|---|
+| Community (Read) | Read-only community string |
+| Community (Write) | Optional — enables port switches & SET services |
+
+**Step 2b — SNMPv3 USM Credentials**
+
+| Field | Description |
+|---|---|
+| Username | USM security name |
+| Auth Protocol | none / MD5 / SHA / SHA-256 / SHA-512 |
+| Auth Passphrase | Required for authNoPriv and authPriv (min. 8 chars) |
+| Privacy Protocol | none / DES / 3DES / AES-128 / AES-256 |
+| Privacy Passphrase | Required for authPriv (min. 8 chars) |
+| Context Name | Optional — only for multi-context deployments |
 
 ---
 
-## ⚙️ Einrichtung
+## SNMPv3 Security Levels
 
-| Feld | Pflicht | Standard | Beschreibung |
+| Security Level | Auth | Privacy | Use case |
 |---|---|---|---|
-| **IP-Adresse** | ✅ | – | Hostname oder IP des Switches |
-| **Port** | – | `161` | SNMP UDP-Port |
-| **Community (Lesen)** | – | `public` | Read-only Community String |
-| **Community (Schreiben)** | – | *(leer)* | Aktiviert Switches & Services |
-| **SNMP Version** | – | `2c` | v1 oder v2c |
-| **Gerätename** | – | *(sysName)* | Anzeigename in HA |
-| **Abfrageintervall** | – | `30` | Sekunden (10–3600) |
+| **noAuthNoPriv** | ✗ | ✗ | Testing only, not recommended |
+| **authNoPriv** | ✅ | ✗ | Authenticated, traffic readable |
+| **authPriv** | ✅ | ✅ | Fully encrypted — recommended for production |
+
+> [!WARNING]
+> Privacy (encryption) always requires authentication. Configuring privacy without auth will be rejected during setup.
 
 ---
 
-## 🔧 Switch-Konfiguration
+## Switch Configuration Examples
 
 ### Cisco IOS / IOS-XE
+
 ```
+! v2c
 snmp-server community public RO
 snmp-server community private RW
+
+! v3 authPriv
+snmp-server group HAGROUP v3 priv
+snmp-server user hauser HAGROUP v3 auth sha MyAuthPass priv aes 128 MyPrivPass
+snmp-server view HAVIEW internet included
 ```
 
 ### HPE ProCurve / Aruba
+
 ```
 snmp-server community "public" operator unrestricted
 snmp-server community "private" manager unrestricted
 ```
 
 ### Ubiquiti UniFi
-**Controller → Settings → System → SNMP** → Community String eintragen
 
-### TP-Link TL-SG Serie
-**Admin UI → SNMP → Community Config → Add**
+**Controller → Settings → System → SNMP** — enable SNMP, set community string.
+
+### TP-Link TL-SG Series
+
+**Admin UI → SNMP → Community Config → Add**  
+`public` (Read-Only) and `private` (Read-Write)
 
 ### MikroTik RouterOS
+
 ```
 /snmp set enabled=yes
 /snmp community add name=public read-access=yes write-access=no
@@ -144,143 +153,155 @@ snmp-server community "private" manager unrestricted
 
 ---
 
-## 🤖 Automatisierungen
+## Entities
 
-### Port nachts deaktivieren
+For each configured switch:
+
+| Entity | Description |
+|---|---|
+| `sensor.*_beschreibung` | sysDescr — device description |
+| `sensor.*_uptime` | sysUpTime in seconds + human-readable attribute |
+| `sensor.*_kontakt` | sysContact |
+| `sensor.*_systemname` | sysName |
+| `sensor.*_standort` | sysLocation |
+| `sensor.*_anzahl_ports` | Port count + ports_up / ports_down attributes |
+| `sensor.*_portX_status` | ifOperStatus per port |
+| `sensor.*_portX_rx` | ifHCInOctets (64-bit) |
+| `sensor.*_portX_tx` | ifHCOutOctets (64-bit) |
+| `sensor.*_portX_fehler` | in_errors + out_errors |
+| `switch.*_portX` | ifAdminStatus toggle *(write access required)* |
+| `button.*_aktualisieren` | Trigger immediate poll |
+
+---
+
+## Services
+
+### `snmp_switch.set_port_alias`
+
+Set the ifAlias (port description) on a port.
+
+```yaml
+service: snmp_switch.set_port_alias
+data:
+  entry_id: "abc123"   # Settings → Devices & Services → Integration → Entry ID
+  if_index: 5
+  alias: "NAS Server"
+```
+
+### `snmp_switch.set_sys_contact`
+
+```yaml
+service: snmp_switch.set_sys_contact
+data:
+  entry_id: "abc123"
+  contact: "IT Admin <admin@company.com>"
+```
+
+### `snmp_switch.set_sys_location`
+
+```yaml
+service: snmp_switch.set_sys_location
+data:
+  entry_id: "abc123"
+  location: "Server Room - Rack 3"
+```
+
+### `snmp_switch.set_sys_name`
+
+```yaml
+service: snmp_switch.set_sys_name
+data:
+  entry_id: "abc123"
+  name: "office-switch-01"
+```
+
+---
+
+## Automation Examples
+
+### Disable port at night
+
 ```yaml
 automation:
-  - alias: "Gäste-WLAN-Port nachts aus"
+  - alias: "Guest port off at night"
     trigger:
       - platform: time
         at: "23:30:00"
     action:
       - service: switch.turn_off
         target:
-          entity_id: switch.bueroswitch_ge0_8
+          entity_id: switch.officeswitch_ge0_8
 ```
 
-### Alarm bei Port-Fehlern
+### Alert on port errors
+
 ```yaml
 automation:
-  - alias: "Switch Port-Fehler Alarm"
+  - alias: "Switch port error alert"
     trigger:
       - platform: numeric_state
-        entity_id: sensor.bueroswitch_ge0_1_fehler
+        entity_id: sensor.officeswitch_ge0_1_fehler
         above: 50
     action:
-      - service: notify.pushover
+      - service: notify.mobile_app
         data:
-          title: "⚠️ Switch Fehler"
-          message: "Port 1 hat über 50 Fehler!"
+          title: "⚠️ Switch Error"
+          message: "Port 1 has over 50 errors!"
 ```
 
 ---
 
-## 🐛 Fehlersuche
+## Debug Logging
 
-### Verbindung testen
-```bash
-snmpwalk -v2c -c public 192.168.1.1 1.3.6.1.2.1.1.1.0
-```
+To enable debug logging, add this to your `configuration.yaml`:
 
-### Debug-Logging
 ```yaml
 logger:
-  default: warning
+  default: info
   logs:
     custom_components.snmp_switch: debug
 ```
 
-| Problem | Lösung |
+Or enable it via **Settings → Devices & Services → SNMP Network Switch → Enable Debug Logging**.
+
+### Connection test (Linux / macOS)
+
+```bash
+# v2c
+snmpwalk -v2c -c public 192.168.1.1 1.3.6.1.2.1.1.1.0
+
+# v3 authPriv
+snmpwalk -v3 -u hauser -l authPriv -a SHA -A MyAuthPass -x AES -X MyPrivPass 192.168.1.1 1.3.6.1.2.1.1.1.0
+```
+
+| Problem | Solution |
 |---|---|
-| *Cannot connect* | Firewall prüfen (UDP 161), SNMP aktiviert? |
-| *Invalid auth* | Community String Groß-/Kleinschreibung beachten |
-| *Switch entities fehlen* | Write-Community konfiguriert? |
-| *Keine Port-Sensoren* | ifTable per `snmpwalk` prüfen |
+| *Cannot connect* | Check firewall (UDP 161), SNMP enabled on switch? |
+| *Invalid auth* | Check community string case / USM credentials |
+| *Switch entities missing* | Write community or SNMPv3 write user configured? |
+| *No port sensors* | Test ifTable access with `snmpwalk` |
+| *v3 auth error* | Auth passphrase must be ≥8 characters |
+| *v3 priv error* | Privacy requires auth — both must be configured |
 
 ---
 
-## 🤖 Vibecoded
+## 🤖 About Vibecoding
 
-> *Dieses Projekt wurde vollständig mit KI-Unterstützung entwickelt – vom ersten Konzept bis zum fertigen HACS-Addon.*
+This integration was built with **AI pair-programming** ([Claude by Anthropic](https://anthropic.com)) rather than written fully by hand. Architecture, SNMPv3 auth/priv handling, all HA platforms and the HACS packaging were generated iteratively with AI help.
 
-**Vibecoding** beschreibt den Workflow, bei dem du deine Idee in natürlicher Sprache formulierst und KI den Code schreibt. Du bleibst Architekt und Qualitätsprüfer – die KI übernimmt die Implementierung.
+This means:
 
-So entstand dieses Addon:
-
-```
-"Baue eine HA Integration für SNMP Netzwerkswitches"
-        ↓
-  Vollständiger Python-Code für alle Plattformen
-  HACS-Struktur, Manifest, Config Flow, Coordinator
-  Logo generiert, README geschrieben
-  GitHub Actions Workflows erstellt
-        ↓
-  Fertig. In einem Gespräch.
-```
-
-**Stack:** [Claude](https://claude.ai) (Anthropic) · Python · Home Assistant · pysnmp
-
-Mehr zum Thema Vibecoding: [Andrej Karpathy on X](https://x.com/karpathy/status/1886192184808149383)
+- It works, but **edge cases may exist**
+- PRs, bug reports, and improvements are very welcome!
 
 ---
 
-## 📐 Architektur
+## Legal
 
-```
-snmp_switch/
-├── __init__.py          # Setup, Services
-├── manifest.json        # HACS / HA Metadaten
-├── config_flow.py       # UI-Setup-Assistent
-├── coordinator.py       # DataUpdateCoordinator
-├── snmp_client.py       # pysnmp Wrapper (GET/SET/WALK)
-├── sensor.py            # Sensor-Entities
-├── switch.py            # Switch-Entities (Port toggle)
-├── button.py            # Button (Refresh)
-├── const.py             # OIDs, Konstanten
-├── services.yaml        # Service-Definitionen
-├── strings.json         # UI-Texte
-├── translations/
-│   ├── de.json          # Deutsch
-│   └── en.json          # Englisch
-├── logo.png             # Integration Logo (512×512)
-└── icon.png             # HACS Icon (256×256)
-```
+- Released under the **[MIT License](LICENSE)**
+- Not affiliated with any switch vendor
+- Use in compliance with your device's terms of service
 
 ---
 
-## 📝 Changelog
-
-### v1.0.0
-- 🎉 Initiale Veröffentlichung
-- System-Sensoren (sysDescr, sysUpTime, sysContact, sysName, sysLocation)
-- Interface-Sensoren pro Port (Status, RX/TX, Fehler)
-- Port-Switches (ifAdminStatus SET)
-- Services: set_port_alias, set_sys_contact, set_sys_location, set_sys_name
-- UI-Setup via Config Flow
-- SNMP v1 & v2c Support
-- 64-bit Traffic Counter (ifHCInOctets / ifHCOutOctets)
-- Deutsche & Englische UI-Übersetzungen
-
----
-
-## 🤝 Contributing
-
-Pull Requests sind willkommen!
-
-1. Fork erstellen
-2. Feature-Branch anlegen: `git checkout -b feature/neue-funktion`
-3. PR öffnen gegen `main`
-
----
-
-## 📄 Lizenz
-
-MIT License – siehe [LICENSE](LICENSE)
-
----
-
-<p align="center">
-  Made with ❤️ &amp; 🤖 for the Home Assistant community<br>
-  <sub>Vibecoded with <a href="https://claude.ai">Claude</a> · <a href="https://github.com/git4sim/HA-SNMP-Network-Switch">github.com/git4sim/HA-SNMP-Network-Switch</a></sub>
-</p>
+Made with 🌐 + 🤖 + ☕ | [Report a Bug](https://github.com/git4sim/HA-SNMP-Network-Switch/issues)
