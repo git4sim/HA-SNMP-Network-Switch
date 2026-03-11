@@ -9,6 +9,15 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, ServiceCall
 
+# !! IMPORTANT !!
+# Do NOT import snmp_client, coordinator, or any module that imports pysnmp
+# at the top level of this file. Python loads __init__.py as the package
+# initialiser before config_flow.py, so a top-level pysnmp import here will
+# crash the entire package load and HA will report "Invalid handler specified"
+# even before the config flow UI opens.
+# All imports of those modules must stay inside async_setup_entry() and the
+# service handlers below.
+
 from .const import (
     CONF_COMMUNITY_READ,
     CONF_COMMUNITY_WRITE,
@@ -29,13 +38,13 @@ from .const import (
     V3_AUTH_NONE,
     V3_PRIV_NONE,
 )
-from .coordinator import SNMPSwitchCoordinator
-from .snmp_client import SNMPSwitchClient
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _build_client(data: dict) -> SNMPSwitchClient:
+def _build_client(data: dict):
+    """Build SNMPSwitchClient — lazy import keeps pysnmp out of package init."""
+    from .snmp_client import SNMPSwitchClient  # lazy
     return SNMPSwitchClient(
         host=data[CONF_HOST],
         port=data.get(CONF_PORT, DEFAULT_PORT),
@@ -53,9 +62,11 @@ def _build_client(data: dict) -> SNMPSwitchClient:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up SNMP Network Switch from a config entry."""
-    data = {**entry.data, **entry.options}
+    from .coordinator import SNMPSwitchCoordinator  # lazy
 
+    data = {**entry.data, **entry.options}
     client = _build_client(data)
+
     coordinator = SNMPSwitchCoordinator(
         hass=hass,
         client=client,
@@ -69,66 +80,77 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     _register_services(hass)
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload entry after options change."""
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)
 
 
 def _register_services(hass: HomeAssistant) -> None:
-    """Register integration-level services (idempotent)."""
+    """Register HA services (idempotent)."""
 
-    async def _coordinator(entry_id: str) -> SNMPSwitchCoordinator | None:
+    async def _get_coordinator(entry_id: str):
         return hass.data.get(DOMAIN, {}).get(entry_id)
 
     async def svc_set_port_alias(call: ServiceCall) -> None:
-        coord = await _coordinator(call.data["entry_id"])
+        coord = await _get_coordinator(call.data["entry_id"])
         if coord:
             await coord.client.set_port_alias(call.data["if_index"], call.data["alias"])
             await coord.async_request_refresh()
 
     async def svc_set_sys_contact(call: ServiceCall) -> None:
-        coord = await _coordinator(call.data["entry_id"])
+        coord = await _get_coordinator(call.data["entry_id"])
         if coord:
             await coord.client.set_sys_contact(call.data["contact"])
             await coord.async_request_refresh()
 
     async def svc_set_sys_location(call: ServiceCall) -> None:
-        coord = await _coordinator(call.data["entry_id"])
+        coord = await _get_coordinator(call.data["entry_id"])
         if coord:
             await coord.client.set_sys_location(call.data["location"])
             await coord.async_request_refresh()
 
     async def svc_set_sys_name(call: ServiceCall) -> None:
-        coord = await _coordinator(call.data["entry_id"])
+        coord = await _get_coordinator(call.data["entry_id"])
         if coord:
             await coord.client.set_sys_name(call.data["name"])
             await coord.async_request_refresh()
 
-    _svc = hass.services
-    if not _svc.has_service(DOMAIN, "set_port_alias"):
-        _svc.async_register(DOMAIN, "set_port_alias", svc_set_port_alias,
+    svc = hass.services
+    if not svc.has_service(DOMAIN, "set_port_alias"):
+        svc.async_register(DOMAIN, "set_port_alias", svc_set_port_alias,
             schema=vol.Schema({
                 vol.Required("entry_id"): cv.string,
                 vol.Required("if_index"): vol.All(int, vol.Range(min=1)),
                 vol.Required("alias"): cv.string,
             }))
-    if not _svc.has_service(DOMAIN, "set_sys_contact"):
-        _svc.async_register(DOMAIN, "set_sys_contact", svc_set_sys_contact,
-            schema=vol.Schema({vol.Required("entry_id"): cv.string, vol.Required("contact"): cv.string}))
-    if not _svc.has_service(DOMAIN, "set_sys_location"):
-        _svc.async_register(DOMAIN, "set_sys_location", svc_set_sys_location,
-            schema=vol.Schema({vol.Required("entry_id"): cv.string, vol.Required("location"): cv.string}))
-    if not _svc.has_service(DOMAIN, "set_sys_name"):
-        _svc.async_register(DOMAIN, "set_sys_name", svc_set_sys_name,
-            schema=vol.Schema({vol.Required("entry_id"): cv.string, vol.Required("name"): cv.string}))
+    if not svc.has_service(DOMAIN, "set_sys_contact"):
+        svc.async_register(DOMAIN, "set_sys_contact", svc_set_sys_contact,
+            schema=vol.Schema({
+                vol.Required("entry_id"): cv.string,
+                vol.Required("contact"): cv.string,
+            }))
+    if not svc.has_service(DOMAIN, "set_sys_location"):
+        svc.async_register(DOMAIN, "set_sys_location", svc_set_sys_location,
+            schema=vol.Schema({
+                vol.Required("entry_id"): cv.string,
+                vol.Required("location"): cv.string,
+            }))
+    if not svc.has_service(DOMAIN, "set_sys_name"):
+        svc.async_register(DOMAIN, "set_sys_name", svc_set_sys_name,
+            schema=vol.Schema({
+                vol.Required("entry_id"): cv.string,
+                vol.Required("name"): cv.string,
+            }))
