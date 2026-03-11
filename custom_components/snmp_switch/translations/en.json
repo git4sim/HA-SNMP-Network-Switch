@@ -2,31 +2,41 @@
   "config": {
     "step": {
       "user": {
-        "title": "Configure SNMP Switch",
-        "description": "Select SNMP version. For v3, USM fields will appear.",
+        "title": "SNMP Switch – Connection",
+        "description": "Choose the SNMP version. The next step will show the matching credentials.",
         "data": {
           "host": "IP Address / Hostname",
           "port": "SNMP Port",
           "snmp_version": "SNMP Version",
-          "name": "Device name (empty = auto-detect)",
-          "scan_interval": "Poll interval (seconds)",
+          "name": "Device name (empty = auto-detect from sysName)",
+          "scan_interval": "Poll interval (seconds)"
+        }
+      },
+      "community": {
+        "title": "SNMP Community Strings",
+        "description": "Read community string is required. Write community is optional (for port toggle and services).",
+        "data": {
           "community_read": "Community String (Read)",
-          "community_write": "Community String (Write, optional)",
-          "v3_username": "Username (USM)",
-          "v3_auth_protocol": "Auth Protocol",
-          "v3_auth_key": "Auth Passphrase",
-          "v3_priv_protocol": "Privacy Protocol",
-          "v3_priv_key": "Privacy Passphrase",
-          "v3_context_name": "Context Name (optional)"
+          "community_write": "Community String (Write, optional)"
+        }
+      },
+      "v3": {
+        "title": "SNMPv3 USM Credentials",
+        "description": "Security levels:\n• **noAuthNoPriv** – username only\n• **authNoPriv** – auth protocol + passphrase\n• **authPriv** – auth + privacy (recommended)",
+        "data": {
+          "v3_username": "Username (USM Security Name)",
+          "v3_auth_protocol": "Auth-Protokoll",
+          "v3_auth_key": "Auth passphrase (empty = noAuth)",
+          "v3_priv_protocol": "Verschlüsselungsprotokoll",
+          "v3_priv_key": "Privacy passphrase (empty = noPriv)",
+          "v3_context_name": "Context Name (optional, usually leave empty)"
         }
       }
     },
     "error": {
-      "cannot_connect": "Connection failed – host unreachable or SNMP not enabled",
-      "invalid_auth": "Authentication failed – check community string or USM credentials",
+      "cannot_connect": "Connection failed – host unreachable, SNMP disabled, or wrong credentials. Check HA logs (Logger: custom_components.snmp_switch).",
       "priv_requires_auth": "Privacy requires an auth protocol and auth passphrase",
-      "unknown": "Unknown error – check logs",
-      "v3_username_required": "Username is required for SNMPv3"
+      "already_configured": "Dieser Switch ist bereits konfiguriert"
     },
     "abort": {
       "already_configured": "This switch is already configured"
@@ -37,69 +47,10 @@
       "init": {
         "title": "SNMP Switch Options",
         "data": {
-          "scan_interval": "Poll interval (seconds)",
+          "scan_interval": "Abfrageintervall (Sekunden)",
           "community_write": "Community String (Write)",
           "v3_auth_key": "Update auth passphrase",
           "v3_priv_key": "Update privacy passphrase"
-        }
-      }
-    }
-  },
-  "services": {
-    "set_port_alias": {
-      "name": "Set Port Alias",
-      "description": "Sets the ifAlias of a port via SNMP SET.",
-      "fields": {
-        "entry_id": {
-          "name": "Entry ID",
-          "description": "Entry ID of the SNMP Switch config entry"
-        },
-        "if_index": {
-          "name": "Port Index",
-          "description": "ifIndex of the port (1-based)"
-        },
-        "alias": {
-          "name": "Alias",
-          "description": "New port label"
-        }
-      }
-    },
-    "set_sys_contact": {
-      "name": "Set System Contact",
-      "fields": {
-        "entry_id": {
-          "name": "Entry ID",
-          "description": "Entry ID"
-        },
-        "contact": {
-          "name": "Contact",
-          "description": "Name / email of the responsible person"
-        }
-      }
-    },
-    "set_sys_location": {
-      "name": "Set System Location",
-      "fields": {
-        "entry_id": {
-          "name": "Entry ID",
-          "description": "Entry ID"
-        },
-        "location": {
-          "name": "Location",
-          "description": "Physical installation location"
-        }
-      }
-    },
-    "set_sys_name": {
-      "name": "Set System Name",
-      "fields": {
-        "entry_id": {
-          "name": "Entry ID",
-          "description": "Entry ID"
-        },
-        "name": {
-          "name": "Name",
-          "description": "New system name"
         }
       }
     }
