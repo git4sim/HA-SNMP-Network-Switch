@@ -248,21 +248,29 @@ class SNMPSwitchClient:
         return ContextData()
 
     async def _transport(self) -> UdpTransportTarget:
-        # pysnmp 6.x has UdpTransportTarget.create() as a coroutine.
-        # pysnmp 4.x uses the sync constructor UdpTransportTarget().
-        # Try async first, fall back to sync.
+        # pysnmp 6.x: UdpTransportTarget.create() exists but _resolve_address
+        # raises NotImplementedError for the base class when host is a string.
+        # The correct approach in 6.x is the sync constructor with a pre-resolved
+        # (host, port) tuple — DNS resolution must happen in an executor.
+        import asyncio
+        import socket
+
+        loop = asyncio.get_event_loop()
+        # Resolve hostname to IP in executor (blocking DNS lookup)
         try:
-            return await UdpTransportTarget.create(
-                (self.host, self.port),
-                timeout=self.timeout,
-                retries=self.retries,
+            infos = await loop.run_in_executor(
+                None,
+                lambda: socket.getaddrinfo(self.host, self.port, socket.AF_INET, socket.SOCK_DGRAM)
             )
-        except (AttributeError, TypeError):
-            return UdpTransportTarget(  # type: ignore[call-arg]
-                (self.host, self.port),
-                timeout=self.timeout,
-                retries=self.retries,
-            )
+            ip = infos[0][4][0]
+        except Exception:
+            ip = self.host  # fallback: hope it's already an IP
+
+        return UdpTransportTarget(
+            (ip, self.port),
+            timeout=self.timeout,
+            retries=self.retries,
+        )
 
     @property
     def security_level(self) -> str:
