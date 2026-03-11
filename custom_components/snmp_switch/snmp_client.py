@@ -10,14 +10,9 @@ _LOGGER = logging.getLogger(__name__)
 #    is only imported lazily (inside _make_client) so this never runs
 #    during package init before requirements are installed.
 
-# pysnmp 6.x: command functions are in hlapi.asyncio (compat layer),
-# data/auth objects are in hlapi.v3arch.asyncio.
-from pysnmp.hlapi.asyncio import (  # command functions
-    getCmd,
-    nextCmd,
-    setCmd,
-)
-from pysnmp.hlapi.v3arch.asyncio import (  # data/auth objects
+# Import everything from the single compat layer — mixing modules causes
+# SnmpEngine version mismatches (getUserContext errors).
+from pysnmp.hlapi.asyncio import (
     CommunityData,
     ContextData,
     ObjectIdentity,
@@ -25,6 +20,9 @@ from pysnmp.hlapi.v3arch.asyncio import (  # data/auth objects
     SnmpEngine,
     UdpTransportTarget,
     UsmUserData,
+    getCmd,
+    nextCmd,
+    setCmd,
 )
 from pysnmp.proto.rfc1902 import Integer, OctetString
 
@@ -32,60 +30,60 @@ from pysnmp.proto.rfc1902 import Integer, OctetString
 # pysnmp 6.x re-exports these from hlapi.v3arch.asyncio.
 # Use direct try/except — no importlib (which would block the event loop).
 
-from pysnmp.hlapi.v3arch.asyncio import usmNoAuthProtocol, usmNoPrivProtocol
+from pysnmp.hlapi.asyncio import usmNoAuthProtocol, usmNoPrivProtocol
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMACSHAAuthProtocol
+    from pysnmp.hlapi.asyncio import usmHMACSHAAuthProtocol
 except ImportError:
     usmHMACSHAAuthProtocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMAC128SHA224AuthProtocol
+    from pysnmp.hlapi.asyncio import usmHMAC128SHA224AuthProtocol
 except ImportError:
     usmHMAC128SHA224AuthProtocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMAC192SHA256AuthProtocol
+    from pysnmp.hlapi.asyncio import usmHMAC192SHA256AuthProtocol
 except ImportError:
     usmHMAC192SHA256AuthProtocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMAC256SHA384AuthProtocol
+    from pysnmp.hlapi.asyncio import usmHMAC256SHA384AuthProtocol
 except ImportError:
     usmHMAC256SHA384AuthProtocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMAC384SHA512AuthProtocol
+    from pysnmp.hlapi.asyncio import usmHMAC384SHA512AuthProtocol
 except ImportError:
     usmHMAC384SHA512AuthProtocol = None  # type: ignore[assignment]
 
 try:  # MD5 removed in pysnmp 6.x (deprecated)
-    from pysnmp.hlapi.v3arch.asyncio import usmHMACMD5AuthProtocol
+    from pysnmp.hlapi.asyncio import usmHMACMD5AuthProtocol
 except ImportError:
     usmHMACMD5AuthProtocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmDESPrivProtocol
+    from pysnmp.hlapi.asyncio import usmDESPrivProtocol
 except ImportError:
     usmDESPrivProtocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usm3DESEDEPrivProtocol
+    from pysnmp.hlapi.asyncio import usm3DESEDEPrivProtocol
 except ImportError:
     usm3DESEDEPrivProtocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmAesCfb128Protocol
+    from pysnmp.hlapi.asyncio import usmAesCfb128Protocol
 except ImportError:
     usmAesCfb128Protocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmAesCfb192Protocol
+    from pysnmp.hlapi.asyncio import usmAesCfb192Protocol
 except ImportError:
     usmAesCfb192Protocol = None  # type: ignore[assignment]
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmAesCfb256Protocol
+    from pysnmp.hlapi.asyncio import usmAesCfb256Protocol
 except ImportError:
     usmAesCfb256Protocol = None  # type: ignore[assignment]
 
