@@ -69,7 +69,7 @@ V3_SECURITY_AUTH_NOPRIV = "authNoPriv"
 V3_SECURITY_AUTH_PRIV = "authPriv"
 
 # Platforms
-PLATFORMS = ["sensor", "switch", "button"]
+PLATFORMS = ["sensor", "switch", "text", "button"]
 
 # ======================================================
 # Standard MIB OIDs
