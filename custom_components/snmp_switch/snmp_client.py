@@ -266,7 +266,14 @@ class SNMPSwitchClient:
         except Exception:
             ip = self.host  # fallback: hope it's already an IP
 
-        return await UdpTransportTarget.create((ip, self.port), timeout=self.timeout, retries=self.retries)
+        # UdpTransportTarget._resolve_address() is abstract in the base class and
+        # raises NotImplementedError. Since we already resolved ip above, subclass
+        # it to return the address directly so create() doesn't try async DNS lookup.
+        class _PreResolvedUdpTransport(UdpTransportTarget):
+            async def _resolve_address(self, addr):  # type: ignore[override]
+                return addr
+
+        return await _PreResolvedUdpTransport.create((ip, self.port), timeout=self.timeout, retries=self.retries)
 
     @property
     def security_level(self) -> str:
