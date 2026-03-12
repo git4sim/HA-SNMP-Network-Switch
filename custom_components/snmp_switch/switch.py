@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_COMMUNITY_WRITE, DOMAIN, IF_OPER_STATUS_MAP, format_speed
+from .const import DOMAIN, IF_OPER_STATUS_MAP, format_speed
 from .coordinator import SNMPSwitchCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,12 +23,11 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Switch-Entities einrichten (nur wenn Write-Community vorhanden)."""
+    """Switch-Entities einrichten (nur wenn Write-Zugriff vorhanden)."""
     coordinator: SNMPSwitchCoordinator = hass.data[DOMAIN][entry.entry_id]
-    data = {**entry.data, **entry.options}
 
-    if not data.get(CONF_COMMUNITY_WRITE):
-        _LOGGER.info("Kein Write-Community – Port-Switches werden nicht erstellt")
+    if not coordinator.has_write_access:
+        _LOGGER.info("Kein Write-Zugriff – Port-Switches werden nicht erstellt")
         return
 
     entities: list[SwitchEntity] = []

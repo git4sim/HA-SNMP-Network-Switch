@@ -1,12 +1,12 @@
 {
   "domain": "snmp_switch",
   "name": "SNMP Network Switch",
-  "version": "1.3.3",
+  "version": "1.4.0",
   "documentation": "https://github.com/git4sim/HA-SNMP-Network-Switch",
   "issue_tracker": "https://github.com/git4sim/HA-SNMP-Network-Switch/issues",
   "dependencies": [],
   "codeowners": ["@git4sim"],
-  "requirements": ["pysnmp==6.2.6"],
+  "requirements": ["pysnmp>=7.0.0"],
   "iot_class": "local_polling",
   "config_flow": true
 }

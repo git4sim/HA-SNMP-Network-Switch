@@ -1,4 +1,4 @@
-"""SNMP Client — pysnmp 6.x (lextudio) compatible, no blocking calls."""
+"""SNMP Client — pysnmp 7.x (lextudio) compatible, no blocking calls."""
 from __future__ import annotations
 
 import logging
@@ -10,9 +10,7 @@ _LOGGER = logging.getLogger(__name__)
 #    is only imported lazily (inside _make_client) so this never runs
 #    during package init before requirements are installed.
 
-# Import from v3arch.asyncio — the consistent snake_case API in pysnmp 6.x.
-# hlapi.asyncio is a compat shim that mixes camelCase lcd.py with the new
-# snake_case SnmpEngine, causing getUserContext AttributeErrors.
+# pysnmp 7.x uses snake_case function names in v3arch.asyncio.
 from pysnmp.hlapi.v3arch.asyncio import (
     CommunityData,
     ContextData,
@@ -21,72 +19,79 @@ from pysnmp.hlapi.v3arch.asyncio import (
     SnmpEngine,
     UdpTransportTarget,
     UsmUserData,
-    getCmd,
-    nextCmd,
-    setCmd,
+    get_cmd,
+    next_cmd,
+    set_cmd,
 )
 from pysnmp.proto.rfc1902 import Integer, OctetString
 
 # ── Auth / Priv protocol objects ──────────────────────────────────────────
-# pysnmp 6.x re-exports these from hlapi.v3arch.asyncio.
-# Use direct try/except — no importlib (which would block the event loop).
-
-from pysnmp.hlapi.v3arch.asyncio import usmNoAuthProtocol, usmNoPrivProtocol
+# pysnmp 7.x uses UPPER_SNAKE_CASE constants for auth/priv protocols.
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMACSHAAuthProtocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_AUTH_NONE
 except ImportError:
-    usmHMACSHAAuthProtocol = None  # type: ignore[assignment]
+    USM_AUTH_NONE = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMAC128SHA224AuthProtocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_PRIV_NONE
 except ImportError:
-    usmHMAC128SHA224AuthProtocol = None  # type: ignore[assignment]
+    USM_PRIV_NONE = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMAC192SHA256AuthProtocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_AUTH_HMAC96_SHA
 except ImportError:
-    usmHMAC192SHA256AuthProtocol = None  # type: ignore[assignment]
+    USM_AUTH_HMAC96_SHA = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMAC256SHA384AuthProtocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_AUTH_HMAC128_SHA224
 except ImportError:
-    usmHMAC256SHA384AuthProtocol = None  # type: ignore[assignment]
+    USM_AUTH_HMAC128_SHA224 = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmHMAC384SHA512AuthProtocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_AUTH_HMAC192_SHA256
 except ImportError:
-    usmHMAC384SHA512AuthProtocol = None  # type: ignore[assignment]
-
-try:  # MD5 removed in pysnmp 6.x (deprecated)
-    from pysnmp.hlapi.v3arch.asyncio import usmHMACMD5AuthProtocol
-except ImportError:
-    usmHMACMD5AuthProtocol = None  # type: ignore[assignment]
+    USM_AUTH_HMAC192_SHA256 = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmDESPrivProtocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_AUTH_HMAC256_SHA384
 except ImportError:
-    usmDESPrivProtocol = None  # type: ignore[assignment]
+    USM_AUTH_HMAC256_SHA384 = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usm3DESEDEPrivProtocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_AUTH_HMAC384_SHA512
 except ImportError:
-    usm3DESEDEPrivProtocol = None  # type: ignore[assignment]
+    USM_AUTH_HMAC384_SHA512 = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmAesCfb128Protocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_AUTH_HMAC96_MD5
 except ImportError:
-    usmAesCfb128Protocol = None  # type: ignore[assignment]
+    USM_AUTH_HMAC96_MD5 = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmAesCfb192Protocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_PRIV_CBC56_DES
 except ImportError:
-    usmAesCfb192Protocol = None  # type: ignore[assignment]
+    USM_PRIV_CBC56_DES = None
 
 try:
-    from pysnmp.hlapi.v3arch.asyncio import usmAesCfb256Protocol
+    from pysnmp.hlapi.v3arch.asyncio import USM_PRIV_CBC168_3DES
 except ImportError:
-    usmAesCfb256Protocol = None  # type: ignore[assignment]
+    USM_PRIV_CBC168_3DES = None
+
+try:
+    from pysnmp.hlapi.v3arch.asyncio import USM_PRIV_CFB128_AES
+except ImportError:
+    USM_PRIV_CFB128_AES = None
+
+try:
+    from pysnmp.hlapi.v3arch.asyncio import USM_PRIV_CFB192_AES
+except ImportError:
+    USM_PRIV_CFB192_AES = None
+
+try:
+    from pysnmp.hlapi.v3arch.asyncio import USM_PRIV_CFB256_AES
+except ImportError:
+    USM_PRIV_CFB256_AES = None
 
 from .const import (
     SNMP_VERSION_1,
@@ -126,35 +131,32 @@ from .const import (
 )
 
 _AUTH_PROTO_MAP: dict[str, Any] = {
-    V3_AUTH_NONE:   usmNoAuthProtocol,
-    V3_AUTH_MD5:    usmHMACMD5AuthProtocol,
-    V3_AUTH_SHA:    usmHMACSHAAuthProtocol,
-    V3_AUTH_SHA224: usmHMAC128SHA224AuthProtocol,
-    V3_AUTH_SHA256: usmHMAC192SHA256AuthProtocol,
-    V3_AUTH_SHA384: usmHMAC256SHA384AuthProtocol,
-    V3_AUTH_SHA512: usmHMAC384SHA512AuthProtocol,
+    V3_AUTH_NONE:   USM_AUTH_NONE,
+    V3_AUTH_MD5:    USM_AUTH_HMAC96_MD5,
+    V3_AUTH_SHA:    USM_AUTH_HMAC96_SHA,
+    V3_AUTH_SHA224: USM_AUTH_HMAC128_SHA224,
+    V3_AUTH_SHA256: USM_AUTH_HMAC192_SHA256,
+    V3_AUTH_SHA384: USM_AUTH_HMAC256_SHA384,
+    V3_AUTH_SHA512: USM_AUTH_HMAC384_SHA512,
 }
 
 _PRIV_PROTO_MAP: dict[str, Any] = {
-    V3_PRIV_NONE:   usmNoPrivProtocol,
-    V3_PRIV_DES:    usmDESPrivProtocol,
-    V3_PRIV_3DES:   usm3DESEDEPrivProtocol,
-    V3_PRIV_AES128: usmAesCfb128Protocol,
-    V3_PRIV_AES192: usmAesCfb192Protocol,
-    V3_PRIV_AES256: usmAesCfb256Protocol,
+    V3_PRIV_NONE:   USM_PRIV_NONE,
+    V3_PRIV_DES:    USM_PRIV_CBC56_DES,
+    V3_PRIV_3DES:   USM_PRIV_CBC168_3DES,
+    V3_PRIV_AES128: USM_PRIV_CFB128_AES,
+    V3_PRIV_AES192: USM_PRIV_CFB192_AES,
+    V3_PRIV_AES256: USM_PRIV_CFB256_AES,
 }
 
-# Log which protocols are unavailable in this pysnmp version
 for _k, _v in {**_AUTH_PROTO_MAP, **_PRIV_PROTO_MAP}.items():
-    if _v is None and _k != V3_AUTH_MD5:  # MD5 removal is expected, don't spam
+    if _v is None and _k not in (V3_AUTH_NONE, V3_PRIV_NONE, V3_AUTH_MD5):
         _LOGGER.warning(
             "snmp_switch: protocol '%s' not available in this pysnmp version", _k
         )
 
 
 # ── Shared SnmpEngine — created once in executor to avoid blocking the loop ──
-# SnmpEngine() reads MIB files from disk on init (blocking I/O).
-# We create it once at module level but defer it to an executor call.
 _ENGINE: SnmpEngine | None = None
 
 
@@ -167,7 +169,7 @@ def _get_or_create_engine() -> SnmpEngine:
 
 
 class SNMPSwitchClient:
-    """Async SNMP client — pysnmp 6.x, no blocking event-loop calls."""
+    """Async SNMP client — pysnmp 7.x, no blocking event-loop calls."""
 
     def __init__(
         self,
@@ -198,7 +200,6 @@ class SNMPSwitchClient:
         self.v3_context_name = v3_context_name
         self.timeout = timeout
         self.retries = retries
-        # Engine is NOT created here — use _engine() async property instead
 
     async def _engine(self) -> SnmpEngine:
         """Return shared SnmpEngine, initialising it in an executor if needed."""
@@ -224,8 +225,8 @@ class SNMPSwitchClient:
         )
 
     def _usm_user(self) -> UsmUserData:
-        auth_proto = _AUTH_PROTO_MAP.get(self.v3_auth_protocol, usmNoAuthProtocol)
-        priv_proto = _PRIV_PROTO_MAP.get(self.v3_priv_protocol, usmNoPrivProtocol)
+        auth_proto = _AUTH_PROTO_MAP.get(self.v3_auth_protocol, USM_AUTH_NONE)
+        priv_proto = _PRIV_PROTO_MAP.get(self.v3_priv_protocol, USM_PRIV_NONE)
         has_auth = self.v3_auth_protocol != V3_AUTH_NONE and bool(self.v3_auth_key)
         has_priv = self.v3_priv_protocol != V3_PRIV_NONE and bool(self.v3_priv_key)
 
@@ -249,32 +250,11 @@ class SNMPSwitchClient:
         return ContextData()
 
     async def _transport(self) -> UdpTransportTarget:
-        # pysnmp 6.x: UdpTransportTarget.create() exists but _resolve_address
-        # raises NotImplementedError for the base class when host is a string.
-        # The correct approach in 6.x is the sync constructor with a pre-resolved
-        # (host, port) tuple — DNS resolution must happen in an executor.
-        import asyncio
-        import socket
-
-        loop = asyncio.get_event_loop()
-        # Resolve hostname to IP in executor (blocking DNS lookup)
-        try:
-            infos = await loop.run_in_executor(
-                None,
-                lambda: socket.getaddrinfo(self.host, self.port, socket.AF_INET, socket.SOCK_DGRAM)
-            )
-            ip = infos[0][4][0]
-        except Exception:
-            ip = self.host  # fallback: hope it's already an IP
-
-        # UdpTransportTarget._resolve_address() is abstract in the base class and
-        # raises NotImplementedError. Since we already resolved ip above, subclass
-        # it to return the address directly so create() doesn't try async DNS lookup.
-        class _PreResolvedUdpTransport(UdpTransportTarget):
-            async def _resolve_address(self, addr):  # type: ignore[override]
-                return addr
-
-        return await _PreResolvedUdpTransport.create((ip, self.port), timeout=self.timeout, retries=self.retries)
+        return await UdpTransportTarget.create(
+            (self.host, self.port),
+            timeout=self.timeout,
+            retries=self.retries,
+        )
 
     @property
     def security_level(self) -> str:
@@ -300,7 +280,7 @@ class SNMPSwitchClient:
         try:
             engine = await self._engine()
             transport = await self._transport()
-            errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
+            errorIndication, errorStatus, errorIndex, varBinds = await get_cmd(
                 engine, self._read_auth(), transport, self._context(),
                 ObjectType(ObjectIdentity(oid)),
             )
@@ -320,7 +300,7 @@ class SNMPSwitchClient:
         try:
             engine = await self._engine()
             transport = await self._transport()
-            errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
+            errorIndication, errorStatus, errorIndex, varBinds = await get_cmd(
                 engine, self._read_auth(), transport, self._context(),
                 ObjectType(ObjectIdentity(oid)),
             )
@@ -340,7 +320,7 @@ class SNMPSwitchClient:
         try:
             engine = await self._engine()
             transport = await self._transport()
-            async for errorIndication, errorStatus, errorIndex, varBinds in nextCmd(
+            async for errorIndication, errorStatus, errorIndex, varBinds in next_cmd(
                 engine, self._read_auth(), transport, self._context(),
                 ObjectType(ObjectIdentity(oid)),
                 lexicographicMode=False,
@@ -364,7 +344,7 @@ class SNMPSwitchClient:
         try:
             engine = await self._engine()
             transport = await self._transport()
-            errorIndication, errorStatus, errorIndex, varBinds = await setCmd(
+            errorIndication, errorStatus, errorIndex, varBinds = await set_cmd(
                 engine, self._write_auth(), transport, self._context(),
                 ObjectType(ObjectIdentity(oid), OctetString(value)),
             )
@@ -386,7 +366,7 @@ class SNMPSwitchClient:
         try:
             engine = await self._engine()
             transport = await self._transport()
-            errorIndication, errorStatus, errorIndex, varBinds = await setCmd(
+            errorIndication, errorStatus, errorIndex, varBinds = await set_cmd(
                 engine, self._write_auth(), transport, self._context(),
                 ObjectType(ObjectIdentity(oid), Integer(value)),
             )
