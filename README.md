@@ -7,15 +7,17 @@ Monitor port status, traffic & errors — toggle ports — edit switch settings 
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg?logo=home-assistant&logoColor=white)](https://github.com/hacs/integration)
 [![Version](https://img.shields.io/github/v/release/git4sim/HA-SNMP-Network-Switch?label=version&color=blue)](https://github.com/git4sim/HA-SNMP-Network-Switch/releases)
-[![Home Assistant](https://img.shields.io/badge/HA-2023.1%2B-brightgreen?logo=home-assistant)](https://home-assistant.io)
+[![Home Assistant](https://img.shields.io/badge/HA-2025.1%2B-brightgreen?logo=home-assistant)](https://home-assistant.io)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python)](https://python.org)
 [![MIT License](https://img.shields.io/github/license/git4sim/HA-SNMP-Network-Switch?color=lightgrey)](https://github.com/git4sim/HA-SNMP-Network-Switch/blob/main/LICENSE)
 [![Vibecoded](https://img.shields.io/badge/vibecoded-%F0%9F%A4%96-blueviolet)](https://x.com/karpathy/status/1886192184808149383)
 
 ---
 
 > [!NOTE]
-> This integration supports **SNMP v1, v2c and v3** (noAuthNoPriv / authNoPriv / authPriv).  
+> This integration supports **SNMP v1, v2c and v3** (noAuthNoPriv / authNoPriv / authPriv).
 > Read-only access is enough for monitoring. A write community or SNMPv3 write user enables port toggling and SET services.
+> Requires **Home Assistant 2025.1+** and **Python 3.12+** (pysnmp ≥ 7.0.0).
 
 > [!TIP]
 > 🤖 This integration was **vibecoded** — generated with AI assistance ([Claude by Anthropic](https://anthropic.com)) and iteratively refined. It is a community project.
