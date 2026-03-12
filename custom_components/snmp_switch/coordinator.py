@@ -55,8 +55,8 @@ class SNMPSwitchCoordinator(DataUpdateCoordinator):
 
     @property
     def has_write_access(self) -> bool:
-        """Ob Write-Community konfiguriert ist."""
-        return bool(self.client.community_write)
+        """Ob Write-Zugriff konfiguriert ist (Community oder SNMPv3)."""
+        return self.client.has_write_access
 
     def get_interface(self, if_index: int) -> dict[str, Any] | None:
         """Interface-Daten nach Index abrufen."""
