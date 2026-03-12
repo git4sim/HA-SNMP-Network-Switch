@@ -161,10 +161,26 @@ _ENGINE: SnmpEngine | None = None
 
 
 def _get_or_create_engine() -> SnmpEngine:
-    """Return the shared SnmpEngine, creating it if needed (call in executor)."""
+    """Return the shared SnmpEngine, creating it if needed (call in executor).
+
+    Also pre-loads common MIBs so the first real SNMP call doesn't trigger
+    blocking file I/O inside the asyncio event loop.
+    """
     global _ENGINE
     if _ENGINE is None:
         _ENGINE = SnmpEngine()
+        try:
+            # Pre-load MIBs so the first real SNMP call doesn't trigger
+            # blocking file I/O inside the asyncio event loop.
+            # pysnmp 7.x uses snake_case; fall back to camelCase for compat.
+            get_builder = getattr(_ENGINE, "get_mib_builder", None) or getattr(_ENGINE, "getMibBuilder", None)
+            if get_builder:
+                builder = get_builder()
+                load = getattr(builder, "load_modules", None) or getattr(builder, "loadModules", None)
+                if load:
+                    load("SNMPv2-SMI", "SNMPv2-TC", "SNMPv2-MIB", "IF-MIB")
+        except Exception:
+            pass  # Non-fatal: MIBs will be loaded lazily on first SNMP call
     return _ENGINE
 
 
@@ -316,23 +332,37 @@ class SNMPSwitchClient:
         return None
 
     async def walk(self, oid: str) -> dict[str, str]:
+        """SNMP WALK via repeated next_cmd calls (pysnmp 7.x: next_cmd is a coroutine, not async generator)."""
         results: dict[str, str] = {}
+        # Trailing dot ensures prefix match is exact (e.g. .1.2 won't match .1.20)
+        oid_prefix = oid if oid.endswith(".") else oid + "."
         try:
             engine = await self._engine()
             transport = await self._transport()
-            async for errorIndication, errorStatus, errorIndex, varBinds in next_cmd(
-                engine, self._read_auth(), transport, self._context(),
-                ObjectType(ObjectIdentity(oid)),
-                lexicographicMode=False,
-            ):
+            current_var = ObjectType(ObjectIdentity(oid))
+            while True:
+                errorIndication, errorStatus, errorIndex, varBinds = await next_cmd(
+                    engine, self._read_auth(), transport, self._context(),
+                    current_var,
+                )
                 if errorIndication:
                     _LOGGER.warning("WALK error [%s] %s: %s", self.host, oid, errorIndication)
                     break
                 if errorStatus:
                     _LOGGER.warning("WALK status [%s] %s: %s", self.host, oid, errorStatus.prettyPrint())
                     break
+                if not varBinds:
+                    break
+                stop = False
                 for varBind in varBinds:
-                    results[str(varBind[0])] = varBind[1].prettyPrint()
+                    result_oid = str(varBind[0])
+                    if not result_oid.startswith(oid_prefix):
+                        stop = True
+                        break
+                    results[result_oid] = varBind[1].prettyPrint()
+                    current_var = ObjectType(ObjectIdentity(result_oid))
+                if stop:
+                    break
         except Exception as err:
             _LOGGER.error("WALK exception [%s] %s: %s: %r", self.host, oid, type(err).__name__, err, exc_info=True)
         return results
