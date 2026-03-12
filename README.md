@@ -70,7 +70,7 @@ Adding SNMP Network Switch to your Home Assistant instance can be done via the U
 The setup is a **multi-step wizard**:
 
 **Step 1 — Connection**
-
+ 
 | Field | Default | Description |
 |---|---|---|
 | IP Address / Hostname | — | Switch IP or DNS name |
