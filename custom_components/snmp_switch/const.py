@@ -118,7 +118,7 @@ IF_OPER_STATUS_MAP = {
 def format_speed(speed_mbps: int) -> str:
     """Format interface speed to human-readable string."""
     if speed_mbps == 0:
-        return "unbekannt"
+        return "unknown"
     elif speed_mbps >= 1000:
         return f"{speed_mbps // 1000} Gbit/s"
     return f"{speed_mbps} Mbit/s"

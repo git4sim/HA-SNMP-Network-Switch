@@ -2,57 +2,119 @@
   "config": {
     "step": {
       "user": {
-        "title": "SNMP Switch – Verbindung",
-        "description": "Wähle die SNMP-Version. Im nächsten Schritt folgen die passenden Zugangsdaten.",
+        "title": "SNMP Switch – Connection",
+        "description": "Choose the SNMP version. The next step will show the matching credentials.",
         "data": {
-          "host": "IP-Adresse / Hostname",
+          "host": "IP Address / Hostname",
           "port": "SNMP Port",
           "snmp_version": "SNMP Version",
-          "name": "Gerätename (leer = automatisch aus sysName)",
-          "scan_interval": "Abfrageintervall (Sekunden)"
+          "name": "Device name (empty = auto-detect from sysName)",
+          "scan_interval": "Poll interval (seconds)"
         }
       },
       "community": {
         "title": "SNMP Community Strings",
-        "description": "Community String für Lesezugriff ist Pflicht. Schreibzugriff ist optional (für Port-Toggle und Services).",
+        "description": "Read community string is required. Write community is optional (for port toggle and services).",
         "data": {
-          "community_read": "Community String (Lesen)",
-          "community_write": "Community String (Schreiben, optional)"
+          "community_read": "Community String (Read)",
+          "community_write": "Community String (Write, optional)"
         }
       },
       "v3": {
-        "title": "SNMPv3 USM Zugangsdaten",
-        "description": "Sicherheitsstufen:\n• **noAuthNoPriv** – nur Benutzername, kein Passwort\n• **authNoPriv** – Auth-Protokoll + Passwort\n• **authPriv** – Auth + Verschlüsselung (empfohlen)",
+        "title": "SNMPv3 USM Credentials",
+        "description": "Security levels:\n• **noAuthNoPriv** – username only\n• **authNoPriv** – auth protocol + passphrase\n• **authPriv** – auth + privacy (recommended)",
         "data": {
-          "v3_username": "Benutzername (USM Security Name)",
-          "v3_auth_protocol": "Auth-Protokoll",
-          "v3_auth_key": "Auth-Passwort (leer = noAuth)",
-          "v3_priv_protocol": "Verschlüsselungsprotokoll",
-          "v3_priv_key": "Verschlüsselungs-Passwort (leer = noPriv)",
-          "v3_context_name": "Context Name (optional, meist leer lassen)"
+          "v3_username": "Username (USM Security Name)",
+          "v3_auth_protocol": "Auth Protocol",
+          "v3_auth_key": "Auth passphrase (empty = noAuth)",
+          "v3_priv_protocol": "Privacy Protocol",
+          "v3_priv_key": "Privacy passphrase (empty = noPriv)",
+          "v3_context_name": "Context Name (optional, usually leave empty)"
+        }
+      },
+      "reconfigure": {
+        "title": "SNMP Switch – Reconfigure",
+        "description": "Update the connection settings for this switch.",
+        "data": {
+          "host": "IP Address / Hostname",
+          "port": "SNMP Port",
+          "snmp_version": "SNMP Version",
+          "name": "Device name (empty = auto-detect from sysName)",
+          "scan_interval": "Poll interval (seconds)"
+        }
+      },
+      "reconfigure_community": {
+        "title": "SNMP Community Strings",
+        "description": "Read community string is required. Write community is optional (for port toggle and services).",
+        "data": {
+          "community_read": "Community String (Read)",
+          "community_write": "Community String (Write, optional)"
+        }
+      },
+      "reconfigure_v3": {
+        "title": "SNMPv3 USM Credentials",
+        "description": "Security levels:\n• **noAuthNoPriv** – username only\n• **authNoPriv** – auth protocol + passphrase\n• **authPriv** – auth + privacy (recommended)",
+        "data": {
+          "v3_username": "Username (USM Security Name)",
+          "v3_auth_protocol": "Auth Protocol",
+          "v3_auth_key": "Auth passphrase (empty = noAuth)",
+          "v3_priv_protocol": "Privacy Protocol",
+          "v3_priv_key": "Privacy passphrase (empty = noPriv)",
+          "v3_context_name": "Context Name (optional, usually leave empty)"
         }
       }
     },
     "error": {
-      "cannot_connect": "Verbindung fehlgeschlagen – Host nicht erreichbar, SNMP deaktiviert oder falsche Zugangsdaten. Details in den HA-Logs (Logger: custom_components.snmp_switch).",
-      "priv_requires_auth": "Privacy erfordert ein Auth-Protokoll + Auth-Passwort",
-      "already_configured": "Dieser Switch ist bereits konfiguriert"
+      "cannot_connect": "Connection failed – host unreachable, SNMP disabled, or wrong credentials. Check HA logs (Logger: custom_components.snmp_switch).",
+      "priv_requires_auth": "Privacy requires an auth protocol and auth passphrase",
+      "already_configured": "This switch is already configured"
     },
     "abort": {
-      "already_configured": "Dieser Switch ist bereits konfiguriert"
+      "already_configured": "This switch is already configured"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "SNMP Switch Optionen",
+        "title": "SNMP Switch Options",
         "data": {
-          "scan_interval": "Abfrageintervall (Sekunden)",
-          "community_write": "Community String (Schreiben)",
-          "v3_auth_key": "Auth-Passwort aktualisieren",
-          "v3_priv_key": "Verschlüsselungs-Passwort aktualisieren"
+          "scan_interval": "Poll interval (seconds)",
+          "community_write": "Community String (Write)",
+          "v3_auth_key": "Update auth passphrase",
+          "v3_priv_key": "Update privacy passphrase"
         }
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "sys_description": { "name": "Description" },
+      "sys_uptime": { "name": "Uptime" },
+      "sys_contact": { "name": "Contact" },
+      "sys_name": { "name": "System Name" },
+      "sys_location": { "name": "Location" },
+      "port_count": { "name": "Port Count" },
+      "port_status": { "name": "{port_name} Status" },
+      "port_admin_status": { "name": "{port_name} Admin Status" },
+      "port_rx": { "name": "{port_name} RX" },
+      "port_tx": { "name": "{port_name} TX" },
+      "port_rx_errors": { "name": "{port_name} RX Errors" },
+      "port_tx_errors": { "name": "{port_name} TX Errors" },
+      "port_description": { "name": "{port_name} Description" },
+      "port_speed": { "name": "{port_name} Speed" },
+      "port_mac": { "name": "{port_name} MAC" }
+    },
+    "switch": {
+      "port_switch": { "name": "{port_name}" }
+    },
+    "text": {
+      "sys_contact_text": { "name": "Contact" },
+      "sys_name_text": { "name": "System Name" },
+      "sys_location_text": { "name": "Location" },
+      "port_alias_text": { "name": "{port_name} Alias" }
+    },
+    "button": {
+      "refresh": { "name": "Refresh" }
     }
   }
 }

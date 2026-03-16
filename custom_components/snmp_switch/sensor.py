@@ -1,4 +1,4 @@
-"""Sensoren für SNMP Network Switch."""
+"""Sensors for SNMP Network Switch."""
 from __future__ import annotations
 
 import logging
@@ -32,36 +32,31 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Sensoren einrichten."""
+    """Set up sensors."""
     coordinator: SNMPSwitchCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities: list[SensorEntity] = []
 
-    # System-Sensoren
+    # System sensors
     entities.extend([
-        SNMPSystemSensor(coordinator, entry, "description", "Beschreibung", "mdi:information-outline"),
+        SNMPSystemSensor(coordinator, entry, "description", "sys_description", "mdi:information-outline"),
         SNMPUptimeSensor(coordinator, entry),
-        SNMPSystemSensor(coordinator, entry, "contact", "Kontakt", "mdi:account"),
-        SNMPSystemSensor(coordinator, entry, "name", "Systemname", "mdi:tag-outline"),
-        SNMPSystemSensor(coordinator, entry, "location", "Standort", "mdi:map-marker"),
+        SNMPSystemSensor(coordinator, entry, "contact", "sys_contact", "mdi:account"),
+        SNMPSystemSensor(coordinator, entry, "name", "sys_name", "mdi:tag-outline"),
+        SNMPSystemSensor(coordinator, entry, "location", "sys_location", "mdi:map-marker"),
         SNMPPortCountSensor(coordinator, entry),
     ])
 
-    # Interface-Sensoren (pro Port)
+    # Interface sensors (per port)
     if coordinator.data and "interfaces" in coordinator.data:
         for if_index in coordinator.data["interfaces"]:
             entities.extend([
-                # Betriebsstatus (up/down/dormant…)
                 SNMPInterfaceStatusSensor(coordinator, entry, if_index),
-                # Admin-Status (aktiviert/deaktiviert)
                 SNMPPortAdminStatusSensor(coordinator, entry, if_index),
-                # Traffic
                 SNMPInterfaceTrafficSensor(coordinator, entry, if_index, "in"),
                 SNMPInterfaceTrafficSensor(coordinator, entry, if_index, "out"),
-                # Fehler (aufgeteilt)
                 SNMPPortErrorSensor(coordinator, entry, if_index, "in"),
                 SNMPPortErrorSensor(coordinator, entry, if_index, "out"),
-                # Diagnose
                 SNMPPortDescriptionSensor(coordinator, entry, if_index),
                 SNMPPortSpeedSensor(coordinator, entry, if_index),
                 SNMPPortMacSensor(coordinator, entry, if_index),
@@ -84,11 +79,18 @@ def _device_info(entry: ConfigEntry) -> DeviceInfo:
 
 def _port_label(coordinator: SNMPSwitchCoordinator, if_index: int) -> str:
     iface = coordinator.get_interface(if_index) or {}
-    return iface.get("name") or iface.get("description") or f"Port {if_index}"
+    label = iface.get("name") or iface.get("description")
+    if label:
+        if label.isdigit():
+            return f"Port {label}"
+        return label
+    return f"Port {if_index}"
 
 
 class SNMPBaseSensor(CoordinatorEntity[SNMPSwitchCoordinator], SensorEntity):
-    """Basis-Sensor."""
+    """Base sensor with entity name translation support."""
+
+    _attr_has_entity_name = True
 
     def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
@@ -96,23 +98,22 @@ class SNMPBaseSensor(CoordinatorEntity[SNMPSwitchCoordinator], SensorEntity):
         self._attr_device_info = _device_info(entry)
 
 
-# ── System-Sensoren ──────────────────────────────────────────────────────────
+# ── System Sensors ──────────────────────────────────────────────────────────
 
 class SNMPSystemSensor(SNMPBaseSensor):
-    """Sensor für Systeminfo-Werte (sysDescr, sysContact, sysName, sysLocation)."""
+    """Sensor for system info values (sysDescr, sysContact, sysName, sysLocation)."""
 
     def __init__(
         self,
         coordinator: SNMPSwitchCoordinator,
         entry: ConfigEntry,
         key: str,
-        name: str,
+        translation_key: str,
         icon: str,
     ) -> None:
         super().__init__(coordinator, entry)
         self._key = key
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} {name}"
+        self._attr_translation_key = translation_key
         self._attr_unique_id = f"{entry.entry_id}_sys_{key}"
         self._attr_icon = icon
         self._attr_state_class = None
@@ -123,12 +124,12 @@ class SNMPSystemSensor(SNMPBaseSensor):
 
 
 class SNMPUptimeSensor(SNMPBaseSensor):
-    """Sensor für Switch-Uptime."""
+    """Sensor for switch uptime."""
+
+    _attr_translation_key = "sys_uptime"
 
     def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} Uptime"
         self._attr_unique_id = f"{entry.entry_id}_sys_uptime"
         self._attr_icon = "mdi:clock-outline"
         self._attr_device_class = SensorDeviceClass.DURATION
@@ -136,7 +137,6 @@ class SNMPUptimeSensor(SNMPBaseSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Uptime in Sekunden (sysUpTime ist in 1/100 Sek)."""
         raw = self.coordinator.get_system_value("uptime_raw")
         if raw is not None:
             try:
@@ -161,12 +161,12 @@ class SNMPUptimeSensor(SNMPBaseSensor):
 
 
 class SNMPPortCountSensor(SNMPBaseSensor):
-    """Sensor für Anzahl der Ports."""
+    """Sensor for port count."""
+
+    _attr_translation_key = "port_count"
 
     def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} Anzahl Ports"
         self._attr_unique_id = f"{entry.entry_id}_sys_if_number"
         self._attr_icon = "mdi:ethernet"
         self._attr_native_unit_of_measurement = "Ports"
@@ -191,18 +191,19 @@ class SNMPPortCountSensor(SNMPBaseSensor):
         return attrs
 
 
-# ── Port-Statussensoren ──────────────────────────────────────────────────────
+# ── Port Status Sensors ──────────────────────────────────────────────────────
 
 class SNMPInterfaceStatusSensor(SNMPBaseSensor):
-    """Betriebsstatus des Ports (ifOperStatus: up/down/dormant…)."""
+    """Port operational status (ifOperStatus: up/down/dormant...)."""
+
+    _attr_translation_key = "port_status"
 
     def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry, if_index: int) -> None:
         super().__init__(coordinator, entry)
         self._if_index = if_index
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} {_port_label(coordinator, if_index)} Status"
         self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_status"
         self._attr_icon = "mdi:ethernet"
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def native_value(self) -> str | None:
@@ -235,15 +236,16 @@ class SNMPInterfaceStatusSensor(SNMPBaseSensor):
 
 
 class SNMPPortAdminStatusSensor(SNMPBaseSensor):
-    """Admin-Status des Ports (ifAdminStatus: up/down/testing)."""
+    """Port admin status (ifAdminStatus: up/down/testing)."""
+
+    _attr_translation_key = "port_admin_status"
 
     def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry, if_index: int) -> None:
         super().__init__(coordinator, entry)
         self._if_index = if_index
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} {_port_label(coordinator, if_index)} Admin-Status"
         self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_admin_status"
         self._attr_icon = "mdi:ethernet-cable"
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def native_value(self) -> str | None:
@@ -260,29 +262,28 @@ class SNMPPortAdminStatusSensor(SNMPBaseSensor):
         return "mdi:ethernet-cable-off"
 
 
-# ── Port-Traffic ─────────────────────────────────────────────────────────────
+# ── Port Traffic ─────────────────────────────────────────────────────────────
 
 class SNMPInterfaceTrafficSensor(SNMPBaseSensor):
-    """Sensor für Port-Traffic (RX/TX Bytes, HC-Counters bevorzugt)."""
+    """Sensor for port traffic (RX/TX bytes, HC counters preferred)."""
 
     def __init__(
         self,
         coordinator: SNMPSwitchCoordinator,
         entry: ConfigEntry,
         if_index: int,
-        direction: str,  # "in" oder "out"
+        direction: str,
     ) -> None:
         super().__init__(coordinator, entry)
         self._if_index = if_index
         self._direction = direction
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        dir_label = "RX" if direction == "in" else "TX"
-        self._attr_name = f"{host} {_port_label(coordinator, if_index)} {dir_label}"
+        self._attr_translation_key = "port_rx" if direction == "in" else "port_tx"
         self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_{direction}_octets"
         self._attr_icon = "mdi:transfer-down" if direction == "in" else "mdi:transfer-up"
         self._attr_native_unit_of_measurement = "B"
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def native_value(self) -> int | None:
@@ -293,28 +294,27 @@ class SNMPInterfaceTrafficSensor(SNMPBaseSensor):
         return None
 
 
-# ── Port-Fehler ──────────────────────────────────────────────────────────────
+# ── Port Errors ──────────────────────────────────────────────────────────────
 
 class SNMPPortErrorSensor(SNMPBaseSensor):
-    """Sensor für Port-Fehler (getrennt nach RX/TX)."""
+    """Sensor for port errors (split by RX/TX)."""
 
     def __init__(
         self,
         coordinator: SNMPSwitchCoordinator,
         entry: ConfigEntry,
         if_index: int,
-        direction: str,  # "in" oder "out"
+        direction: str,
     ) -> None:
         super().__init__(coordinator, entry)
         self._if_index = if_index
         self._direction = direction
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        dir_label = "RX-Fehler" if direction == "in" else "TX-Fehler"
-        self._attr_name = f"{host} {_port_label(coordinator, if_index)} {dir_label}"
+        self._attr_translation_key = "port_rx_errors" if direction == "in" else "port_tx_errors"
         self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_{direction}_errors"
         self._attr_icon = "mdi:alert-circle-outline"
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def native_value(self) -> int | None:
@@ -325,20 +325,20 @@ class SNMPPortErrorSensor(SNMPBaseSensor):
         return None
 
 
-# ── Port-Diagnose ────────────────────────────────────────────────────────────
+# ── Port Diagnostics ────────────────────────────────────────────────────────
 
 class SNMPPortDescriptionSensor(SNMPBaseSensor):
-    """Sensor für Port-Beschreibung (ifDescr — Hardware-Name, z.B. 'GigabitEthernet0/1')."""
+    """Sensor for port description (ifDescr — hardware name)."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "port_description"
 
     def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry, if_index: int) -> None:
         super().__init__(coordinator, entry)
         self._if_index = if_index
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} {_port_label(coordinator, if_index)} Beschreibung"
         self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_description"
         self._attr_icon = "mdi:information-outline"
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def native_value(self) -> str | None:
@@ -361,19 +361,19 @@ class SNMPPortDescriptionSensor(SNMPBaseSensor):
 
 
 class SNMPPortSpeedSensor(SNMPBaseSensor):
-    """Sensor für Port-Geschwindigkeit (ifHighSpeed in Mbit/s)."""
+    """Sensor for port speed (ifHighSpeed in Mbit/s)."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "port_speed"
 
     def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry, if_index: int) -> None:
         super().__init__(coordinator, entry)
         self._if_index = if_index
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} {_port_label(coordinator, if_index)} Geschwindigkeit"
         self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_speed"
         self._attr_icon = "mdi:speedometer"
         self._attr_native_unit_of_measurement = "Mbit/s"
         self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def native_value(self) -> int | None:
@@ -385,17 +385,17 @@ class SNMPPortSpeedSensor(SNMPBaseSensor):
 
 
 class SNMPPortMacSensor(SNMPBaseSensor):
-    """Sensor für Port-MAC-Adresse (ifPhysAddress)."""
+    """Sensor for port MAC address (ifPhysAddress)."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "port_mac"
 
     def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry, if_index: int) -> None:
         super().__init__(coordinator, entry)
         self._if_index = if_index
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} {_port_label(coordinator, if_index)} MAC"
         self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_mac"
         self._attr_icon = "mdi:identifier"
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def native_value(self) -> str | None:

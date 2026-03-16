@@ -1,4 +1,4 @@
-"""Switch-Entities für SNMP Network Switch Ports."""
+"""Switch entities for SNMP Network Switch ports."""
 from __future__ import annotations
 
 import logging
@@ -23,11 +23,11 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Switch-Entities einrichten (nur wenn Write-Zugriff vorhanden)."""
+    """Set up switch entities (only if write access is available)."""
     coordinator: SNMPSwitchCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     if not coordinator.has_write_access:
-        _LOGGER.info("Kein Write-Zugriff – Port-Switches werden nicht erstellt")
+        _LOGGER.info("No write access – port switches will not be created")
         return
 
     entities: list[SwitchEntity] = []
@@ -49,8 +49,21 @@ def _device_info(entry: ConfigEntry) -> DeviceInfo:
     )
 
 
+def _port_label(coordinator: SNMPSwitchCoordinator, if_index: int) -> str:
+    iface = coordinator.get_interface(if_index) or {}
+    label = iface.get("name") or iface.get("description")
+    if label:
+        if label.isdigit():
+            return f"Port {label}"
+        return label
+    return f"Port {if_index}"
+
+
 class SNMPPortSwitch(CoordinatorEntity[SNMPSwitchCoordinator], SwitchEntity):
-    """Switch-Entity zum Ein-/Ausschalten eines Ports (ifAdminStatus)."""
+    """Switch entity to enable/disable a port (ifAdminStatus)."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "port_switch"
 
     def __init__(
         self,
@@ -61,16 +74,13 @@ class SNMPPortSwitch(CoordinatorEntity[SNMPSwitchCoordinator], SwitchEntity):
         super().__init__(coordinator)
         self._entry = entry
         self._if_index = if_index
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        iface = coordinator.get_interface(if_index) or {}
-        port_name = iface.get("name") or iface.get("description") or f"Port {if_index}"
-        self._attr_name = f"{host} {port_name}"
         self._attr_unique_id = f"{entry.entry_id}_port_{if_index}_switch"
         self._attr_device_info = _device_info(entry)
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def is_on(self) -> bool | None:
-        """True wenn Admin-Status = up (1)."""
+        """True if admin status = up (1)."""
         iface = self.coordinator.get_interface(self._if_index)
         if iface:
             return iface.get("admin_status") == 1
@@ -105,19 +115,19 @@ class SNMPPortSwitch(CoordinatorEntity[SNMPSwitchCoordinator], SwitchEntity):
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Port einschalten (ifAdminStatus = up)."""
+        """Enable port (ifAdminStatus = up)."""
         success = await self.coordinator.client.set_port_admin_status(self._if_index, True)
         if success:
-            _LOGGER.info("Port %d eingeschaltet", self._if_index)
+            _LOGGER.info("Port %d enabled", self._if_index)
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Konnte Port %d nicht einschalten", self._if_index)
+            _LOGGER.error("Could not enable port %d", self._if_index)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Port ausschalten (ifAdminStatus = down)."""
+        """Disable port (ifAdminStatus = down)."""
         success = await self.coordinator.client.set_port_admin_status(self._if_index, False)
         if success:
-            _LOGGER.info("Port %d ausgeschaltet", self._if_index)
+            _LOGGER.info("Port %d disabled", self._if_index)
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Konnte Port %d nicht ausschalten", self._if_index)
+            _LOGGER.error("Could not disable port %d", self._if_index)

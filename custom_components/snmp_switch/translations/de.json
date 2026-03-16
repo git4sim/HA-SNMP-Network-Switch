@@ -31,6 +31,37 @@
           "v3_priv_key": "Verschlüsselungs-Passwort (leer = noPriv)",
           "v3_context_name": "Context Name (optional, meist leer lassen)"
         }
+      },
+      "reconfigure": {
+        "title": "SNMP Switch – Neu konfigurieren",
+        "description": "Verbindungseinstellungen für diesen Switch aktualisieren.",
+        "data": {
+          "host": "IP-Adresse / Hostname",
+          "port": "SNMP Port",
+          "snmp_version": "SNMP Version",
+          "name": "Gerätename (leer = automatisch aus sysName)",
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        }
+      },
+      "reconfigure_community": {
+        "title": "SNMP Community Strings",
+        "description": "Community String für Lesezugriff ist Pflicht. Schreibzugriff ist optional (für Port-Toggle und Services).",
+        "data": {
+          "community_read": "Community String (Lesen)",
+          "community_write": "Community String (Schreiben, optional)"
+        }
+      },
+      "reconfigure_v3": {
+        "title": "SNMPv3 USM Zugangsdaten",
+        "description": "Sicherheitsstufen:\n• **noAuthNoPriv** – nur Benutzername, kein Passwort\n• **authNoPriv** – Auth-Protokoll + Passwort\n• **authPriv** – Auth + Verschlüsselung (empfohlen)",
+        "data": {
+          "v3_username": "Benutzername (USM Security Name)",
+          "v3_auth_protocol": "Auth-Protokoll",
+          "v3_auth_key": "Auth-Passwort (leer = noAuth)",
+          "v3_priv_protocol": "Verschlüsselungsprotokoll",
+          "v3_priv_key": "Verschlüsselungs-Passwort (leer = noPriv)",
+          "v3_context_name": "Context Name (optional, meist leer lassen)"
+        }
       }
     },
     "error": {
@@ -53,6 +84,37 @@
           "v3_priv_key": "Verschlüsselungs-Passwort aktualisieren"
         }
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "sys_description": { "name": "Beschreibung" },
+      "sys_uptime": { "name": "Uptime" },
+      "sys_contact": { "name": "Kontakt" },
+      "sys_name": { "name": "Systemname" },
+      "sys_location": { "name": "Standort" },
+      "port_count": { "name": "Anzahl Ports" },
+      "port_status": { "name": "{port_name} Status" },
+      "port_admin_status": { "name": "{port_name} Admin-Status" },
+      "port_rx": { "name": "{port_name} RX" },
+      "port_tx": { "name": "{port_name} TX" },
+      "port_rx_errors": { "name": "{port_name} RX-Fehler" },
+      "port_tx_errors": { "name": "{port_name} TX-Fehler" },
+      "port_description": { "name": "{port_name} Beschreibung" },
+      "port_speed": { "name": "{port_name} Geschwindigkeit" },
+      "port_mac": { "name": "{port_name} MAC" }
+    },
+    "switch": {
+      "port_switch": { "name": "{port_name}" }
+    },
+    "text": {
+      "sys_contact_text": { "name": "Kontakt" },
+      "sys_name_text": { "name": "Systemname" },
+      "sys_location_text": { "name": "Standort" },
+      "port_alias_text": { "name": "{port_name} Alias" }
+    },
+    "button": {
+      "refresh": { "name": "Aktualisieren" }
     }
   }
 }
