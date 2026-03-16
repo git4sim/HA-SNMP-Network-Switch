@@ -1,4 +1,4 @@
-"""Text-Entities für beschreibbare SNMP-Felder."""
+"""Text entities for writable SNMP fields."""
 from __future__ import annotations
 
 import logging
@@ -23,23 +23,23 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Text-Entities einrichten (nur bei Write-Zugriff)."""
+    """Set up text entities (only if write access is available)."""
     coordinator: SNMPSwitchCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     if not coordinator.has_write_access:
-        _LOGGER.debug("Kein Write-Zugriff – Text-Entities werden nicht erstellt")
+        _LOGGER.debug("No write access – text entities will not be created")
         return
 
     entities: list[TextEntity] = []
 
-    # System-Felder (beschreibbar)
+    # System fields (writable)
     entities.extend([
-        SNMPSystemText(coordinator, entry, "contact", "Kontakt", "mdi:account", "set_sys_contact"),
-        SNMPSystemText(coordinator, entry, "name", "Systemname", "mdi:tag-outline", "set_sys_name"),
-        SNMPSystemText(coordinator, entry, "location", "Standort", "mdi:map-marker", "set_sys_location"),
+        SNMPSystemText(coordinator, entry, "contact", "sys_contact_text", "mdi:account", "set_sys_contact"),
+        SNMPSystemText(coordinator, entry, "name", "sys_name_text", "mdi:tag-outline", "set_sys_name"),
+        SNMPSystemText(coordinator, entry, "location", "sys_location_text", "mdi:map-marker", "set_sys_location"),
     ])
 
-    # Port-Alias (pro Port, beschreibbar)
+    # Port alias (per port, writable)
     if coordinator.data and "interfaces" in coordinator.data:
         for if_index in coordinator.data["interfaces"]:
             entities.append(SNMPPortAliasText(coordinator, entry, if_index))
@@ -57,9 +57,20 @@ def _device_info(entry: ConfigEntry) -> DeviceInfo:
     )
 
 
-class SNMPSystemText(CoordinatorEntity[SNMPSwitchCoordinator], TextEntity):
-    """Beschreibbares Text-Entity für System-Felder (sysContact, sysName, sysLocation)."""
+def _port_label(coordinator: SNMPSwitchCoordinator, if_index: int) -> str:
+    iface = coordinator.get_interface(if_index) or {}
+    label = iface.get("name") or iface.get("description")
+    if label:
+        if label.isdigit():
+            return f"Port {label}"
+        return label
+    return f"Port {if_index}"
 
+
+class SNMPSystemText(CoordinatorEntity[SNMPSwitchCoordinator], TextEntity):
+    """Writable text entity for system fields (sysContact, sysName, sysLocation)."""
+
+    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_native_max = 255
 
@@ -68,7 +79,7 @@ class SNMPSystemText(CoordinatorEntity[SNMPSwitchCoordinator], TextEntity):
         coordinator: SNMPSwitchCoordinator,
         entry: ConfigEntry,
         key: str,
-        label: str,
+        translation_key: str,
         icon: str,
         setter: str,
     ) -> None:
@@ -76,8 +87,7 @@ class SNMPSystemText(CoordinatorEntity[SNMPSwitchCoordinator], TextEntity):
         self._entry = entry
         self._key = key
         self._setter = setter
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        self._attr_name = f"{host} {label}"
+        self._attr_translation_key = translation_key
         self._attr_unique_id = f"{entry.entry_id}_sys_{key}_text"
         self._attr_icon = icon
         self._attr_device_info = _device_info(entry)
@@ -87,21 +97,23 @@ class SNMPSystemText(CoordinatorEntity[SNMPSwitchCoordinator], TextEntity):
         return self.coordinator.get_system_value(self._key)
 
     async def async_set_value(self, value: str) -> None:
-        """Wert via SNMP SET schreiben."""
+        """Write value via SNMP SET."""
         setter_fn = getattr(self.coordinator.client, self._setter)
         success = await setter_fn(value)
         if success:
-            _LOGGER.info("System %s auf '%s' gesetzt", self._key, value)
+            _LOGGER.info("System %s set to '%s'", self._key, value)
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Konnte System %s nicht setzen", self._key)
+            _LOGGER.error("Could not set system %s", self._key)
 
 
 class SNMPPortAliasText(CoordinatorEntity[SNMPSwitchCoordinator], TextEntity):
-    """Beschreibbares Text-Entity für Port-Alias (ifAlias)."""
+    """Writable text entity for port alias (ifAlias)."""
 
+    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_native_max = 64
+    _attr_translation_key = "port_alias_text"
 
     def __init__(
         self,
@@ -112,13 +124,10 @@ class SNMPPortAliasText(CoordinatorEntity[SNMPSwitchCoordinator], TextEntity):
         super().__init__(coordinator)
         self._entry = entry
         self._if_index = if_index
-        host = entry.data.get(CONF_NAME) or entry.data[CONF_HOST]
-        iface = coordinator.get_interface(if_index) or {}
-        port_name = iface.get("name") or iface.get("description") or f"Port {if_index}"
-        self._attr_name = f"{host} {port_name} Alias"
         self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_alias_text"
         self._attr_icon = "mdi:label-outline"
         self._attr_device_info = _device_info(entry)
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
     def native_value(self) -> str | None:
@@ -128,10 +137,10 @@ class SNMPPortAliasText(CoordinatorEntity[SNMPSwitchCoordinator], TextEntity):
         return None
 
     async def async_set_value(self, value: str) -> None:
-        """Port-Alias via SNMP SET schreiben."""
+        """Write port alias via SNMP SET."""
         success = await self.coordinator.client.set_port_alias(self._if_index, value)
         if success:
-            _LOGGER.info("Port %d Alias auf '%s' gesetzt", self._if_index, value)
+            _LOGGER.info("Port %d alias set to '%s'", self._if_index, value)
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Konnte Alias für Port %d nicht setzen", self._if_index)
+            _LOGGER.error("Could not set alias for port %d", self._if_index)

@@ -105,9 +105,9 @@ def _make_client(data: dict[str, Any]):
 
 class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """
-    Step 1 (user):      Host, Port, SNMP-Version, Name, Intervall
-    Step 2a (community): v1/v2c Community Strings + Verbindungstest
-    Step 2b (v3):        SNMPv3 USM Credentials + Verbindungstest
+    Step 1 (user):      Host, Port, SNMP-Version, Name, Interval
+    Step 2a (community): v1/v2c Community Strings + connection test
+    Step 2b (v3):        SNMPv3 USM Credentials + connection test
     """
 
     VERSION = 1
@@ -122,6 +122,14 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.FlowResult:
         if user_input is not None:
             self._data.update(user_input)
+
+            # Early duplicate check before connection test
+            unique_id = (
+                f"{user_input[CONF_HOST]}:{user_input.get(CONF_PORT, DEFAULT_PORT)}"
+            )
+            await self.async_set_unique_id(unique_id)
+            self._abort_if_unique_id_configured()
+
             if user_input.get(CONF_SNMP_VERSION) == SNMP_VERSION_3:
                 return await self.async_step_v3()
             return await self.async_step_community()
@@ -252,6 +260,119 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         _LOGGER.info("snmp_switch: entry created — %s (%s)", title, unique_id)
         return self.async_create_entry(title=title, data=self._data)
+
+    # ── Reconfigure Flow ───────────────────────────────────────────────────
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Handle reconfiguration of an existing entry."""
+        entry = self._get_reconfigure_entry()
+        if not self._data:
+            self._data = dict(entry.data)
+
+        if user_input is not None:
+            self._data.update(user_input)
+            if user_input.get(CONF_SNMP_VERSION) == SNMP_VERSION_3:
+                return await self.async_step_reconfigure_v3()
+            return await self.async_step_reconfigure_community()
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_user_schema(self._data),
+        )
+
+    async def async_step_reconfigure_community(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Reconfigure community credentials."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            merged = {**self._data, **user_input}
+            merged[CONF_COMMUNITY_WRITE] = user_input.get(CONF_COMMUNITY_WRITE) or None
+
+            try:
+                client = _make_client(merged)
+                ok = await client.test_connection()
+                if ok:
+                    return self.async_update_reload_and_abort(
+                        self._get_reconfigure_entry(),
+                        data=merged,
+                    )
+                _LOGGER.warning(
+                    "snmp_switch: cannot_connect during reconfigure to %s:%s",
+                    merged.get(CONF_HOST), merged.get(CONF_PORT),
+                )
+                errors["base"] = "cannot_connect"
+            except Exception as exc:
+                _LOGGER.exception(
+                    "snmp_switch: exception during reconfigure test to %s:%s — %s",
+                    merged.get(CONF_HOST), merged.get(CONF_PORT), exc,
+                )
+                errors["base"] = "cannot_connect"
+
+            return self.async_show_form(
+                step_id="reconfigure_community",
+                data_schema=_community_schema(user_input),
+                errors=errors,
+            )
+
+        return self.async_show_form(
+            step_id="reconfigure_community",
+            data_schema=_community_schema(self._data),
+        )
+
+    async def async_step_reconfigure_v3(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Reconfigure SNMPv3 credentials."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            has_auth = (
+                user_input.get(CONF_V3_AUTH_PROTOCOL, V3_AUTH_NONE) != V3_AUTH_NONE
+                and bool(user_input.get(CONF_V3_AUTH_KEY, "").strip())
+            )
+            has_priv = (
+                user_input.get(CONF_V3_PRIV_PROTOCOL, V3_PRIV_NONE) != V3_PRIV_NONE
+                and bool(user_input.get(CONF_V3_PRIV_KEY, "").strip())
+            )
+
+            if has_priv and not has_auth:
+                errors[CONF_V3_AUTH_KEY] = "priv_requires_auth"
+            else:
+                merged = {**self._data, **user_input}
+                try:
+                    client = _make_client(merged)
+                    ok = await client.test_connection()
+                    if ok:
+                        return self.async_update_reload_and_abort(
+                            self._get_reconfigure_entry(),
+                            data=merged,
+                        )
+                    _LOGGER.warning(
+                        "snmp_switch: cannot_connect during reconfigure to %s:%s via SNMPv3",
+                        merged.get(CONF_HOST), merged.get(CONF_PORT),
+                    )
+                    errors["base"] = "cannot_connect"
+                except Exception as exc:
+                    _LOGGER.exception(
+                        "snmp_switch: exception during SNMPv3 reconfigure test to %s:%s — %s",
+                        merged.get(CONF_HOST), merged.get(CONF_PORT), exc,
+                    )
+                    errors["base"] = "cannot_connect"
+
+            return self.async_show_form(
+                step_id="reconfigure_v3",
+                data_schema=_v3_schema(user_input),
+                errors=errors,
+            )
+
+        return self.async_show_form(
+            step_id="reconfigure_v3",
+            data_schema=_v3_schema(self._data),
+        )
 
     @staticmethod
     @callback

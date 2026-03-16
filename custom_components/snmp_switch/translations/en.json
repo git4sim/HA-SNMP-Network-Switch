@@ -25,9 +25,40 @@
         "description": "Security levels:\n• **noAuthNoPriv** – username only\n• **authNoPriv** – auth protocol + passphrase\n• **authPriv** – auth + privacy (recommended)",
         "data": {
           "v3_username": "Username (USM Security Name)",
-          "v3_auth_protocol": "Auth-Protokoll",
+          "v3_auth_protocol": "Auth Protocol",
           "v3_auth_key": "Auth passphrase (empty = noAuth)",
-          "v3_priv_protocol": "Verschlüsselungsprotokoll",
+          "v3_priv_protocol": "Privacy Protocol",
+          "v3_priv_key": "Privacy passphrase (empty = noPriv)",
+          "v3_context_name": "Context Name (optional, usually leave empty)"
+        }
+      },
+      "reconfigure": {
+        "title": "SNMP Switch – Reconfigure",
+        "description": "Update the connection settings for this switch.",
+        "data": {
+          "host": "IP Address / Hostname",
+          "port": "SNMP Port",
+          "snmp_version": "SNMP Version",
+          "name": "Device name (empty = auto-detect from sysName)",
+          "scan_interval": "Poll interval (seconds)"
+        }
+      },
+      "reconfigure_community": {
+        "title": "SNMP Community Strings",
+        "description": "Read community string is required. Write community is optional (for port toggle and services).",
+        "data": {
+          "community_read": "Community String (Read)",
+          "community_write": "Community String (Write, optional)"
+        }
+      },
+      "reconfigure_v3": {
+        "title": "SNMPv3 USM Credentials",
+        "description": "Security levels:\n• **noAuthNoPriv** – username only\n• **authNoPriv** – auth protocol + passphrase\n• **authPriv** – auth + privacy (recommended)",
+        "data": {
+          "v3_username": "Username (USM Security Name)",
+          "v3_auth_protocol": "Auth Protocol",
+          "v3_auth_key": "Auth passphrase (empty = noAuth)",
+          "v3_priv_protocol": "Privacy Protocol",
           "v3_priv_key": "Privacy passphrase (empty = noPriv)",
           "v3_context_name": "Context Name (optional, usually leave empty)"
         }
@@ -36,7 +67,7 @@
     "error": {
       "cannot_connect": "Connection failed – host unreachable, SNMP disabled, or wrong credentials. Check HA logs (Logger: custom_components.snmp_switch).",
       "priv_requires_auth": "Privacy requires an auth protocol and auth passphrase",
-      "already_configured": "Dieser Switch ist bereits konfiguriert"
+      "already_configured": "This switch is already configured"
     },
     "abort": {
       "already_configured": "This switch is already configured"
@@ -47,12 +78,43 @@
       "init": {
         "title": "SNMP Switch Options",
         "data": {
-          "scan_interval": "Abfrageintervall (Sekunden)",
+          "scan_interval": "Poll interval (seconds)",
           "community_write": "Community String (Write)",
           "v3_auth_key": "Update auth passphrase",
           "v3_priv_key": "Update privacy passphrase"
         }
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "sys_description": { "name": "Description" },
+      "sys_uptime": { "name": "Uptime" },
+      "sys_contact": { "name": "Contact" },
+      "sys_name": { "name": "System Name" },
+      "sys_location": { "name": "Location" },
+      "port_count": { "name": "Port Count" },
+      "port_status": { "name": "{port_name} Status" },
+      "port_admin_status": { "name": "{port_name} Admin Status" },
+      "port_rx": { "name": "{port_name} RX" },
+      "port_tx": { "name": "{port_name} TX" },
+      "port_rx_errors": { "name": "{port_name} RX Errors" },
+      "port_tx_errors": { "name": "{port_name} TX Errors" },
+      "port_description": { "name": "{port_name} Description" },
+      "port_speed": { "name": "{port_name} Speed" },
+      "port_mac": { "name": "{port_name} MAC" }
+    },
+    "switch": {
+      "port_switch": { "name": "{port_name}" }
+    },
+    "text": {
+      "sys_contact_text": { "name": "Contact" },
+      "sys_name_text": { "name": "System Name" },
+      "sys_location_text": { "name": "Location" },
+      "port_alias_text": { "name": "{port_name} Alias" }
+    },
+    "button": {
+      "refresh": { "name": "Refresh" }
     }
   }
 }
