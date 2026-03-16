@@ -392,29 +392,69 @@ class SNMPSwitchOptionsFlow(config_entries.OptionsFlow):
     ) -> config_entries.FlowResult:
         current = {**self.config_entry.data, **self.config_entry.options}
         version = current.get(CONF_SNMP_VERSION, SNMP_VERSION_2C)
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             if not user_input.get(CONF_COMMUNITY_WRITE):
                 user_input[CONF_COMMUNITY_WRITE] = None
-            return self.async_create_entry(title="", data=user_input)
+
+            # SNMPv3: validate priv requires auth
+            if version == SNMP_VERSION_3:
+                has_auth = (
+                    user_input.get(CONF_V3_AUTH_PROTOCOL, V3_AUTH_NONE) != V3_AUTH_NONE
+                    and bool(user_input.get(CONF_V3_AUTH_KEY, "").strip())
+                )
+                has_priv = (
+                    user_input.get(CONF_V3_PRIV_PROTOCOL, V3_PRIV_NONE) != V3_PRIV_NONE
+                    and bool(user_input.get(CONF_V3_PRIV_KEY, "").strip())
+                )
+                if has_priv and not has_auth:
+                    errors[CONF_V3_AUTH_KEY] = "priv_requires_auth"
+
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
 
         if version == SNMP_VERSION_3:
             schema = vol.Schema({
                 vol.Optional(CONF_SCAN_INTERVAL,
                     default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)):
                     vol.All(int, vol.Range(min=10, max=3600)),
+                vol.Optional(CONF_PORT,
+                    default=current.get(CONF_PORT, DEFAULT_PORT)):
+                    vol.All(int, vol.Range(min=1, max=65535)),
+                vol.Optional(CONF_NAME,
+                    default=current.get(CONF_NAME, "")): str,
+                vol.Required(CONF_V3_USERNAME,
+                    default=current.get(CONF_V3_USERNAME, "")): str,
+                vol.Optional(CONF_V3_AUTH_PROTOCOL,
+                    default=current.get(CONF_V3_AUTH_PROTOCOL, V3_AUTH_SHA256)):
+                    vol.In(V3_AUTH_PROTOCOLS),
                 vol.Optional(CONF_V3_AUTH_KEY,
                     default=current.get(CONF_V3_AUTH_KEY, "")): str,
+                vol.Optional(CONF_V3_PRIV_PROTOCOL,
+                    default=current.get(CONF_V3_PRIV_PROTOCOL, V3_PRIV_AES128)):
+                    vol.In(V3_PRIV_PROTOCOLS),
                 vol.Optional(CONF_V3_PRIV_KEY,
                     default=current.get(CONF_V3_PRIV_KEY, "")): str,
+                vol.Optional(CONF_V3_CONTEXT_NAME,
+                    default=current.get(CONF_V3_CONTEXT_NAME, "")): str,
             })
         else:
             schema = vol.Schema({
                 vol.Optional(CONF_SCAN_INTERVAL,
                     default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)):
                     vol.All(int, vol.Range(min=10, max=3600)),
+                vol.Optional(CONF_PORT,
+                    default=current.get(CONF_PORT, DEFAULT_PORT)):
+                    vol.All(int, vol.Range(min=1, max=65535)),
+                vol.Optional(CONF_NAME,
+                    default=current.get(CONF_NAME, "")): str,
+                vol.Optional(CONF_COMMUNITY_READ,
+                    default=current.get(CONF_COMMUNITY_READ, DEFAULT_COMMUNITY_READ)): str,
                 vol.Optional(CONF_COMMUNITY_WRITE,
                     default=current.get(CONF_COMMUNITY_WRITE) or ""): str,
             })
 
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(
+            step_id="init", data_schema=schema, errors=errors,
+        )

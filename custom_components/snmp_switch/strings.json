@@ -79,11 +79,21 @@
         "title": "SNMP Switch Options",
         "data": {
           "scan_interval": "Poll interval (seconds)",
-          "community_write": "Community String (Write)",
-          "v3_auth_key": "Update auth passphrase",
-          "v3_priv_key": "Update privacy passphrase"
+          "port": "SNMP Port",
+          "name": "Device name (empty = auto-detect from sysName)",
+          "community_read": "Community String (Read)",
+          "community_write": "Community String (Write, optional)",
+          "v3_username": "Username (USM Security Name)",
+          "v3_auth_protocol": "Auth Protocol",
+          "v3_auth_key": "Auth passphrase (empty = noAuth)",
+          "v3_priv_protocol": "Privacy Protocol",
+          "v3_priv_key": "Privacy passphrase (empty = noPriv)",
+          "v3_context_name": "Context Name (optional)"
         }
       }
+    },
+    "error": {
+      "priv_requires_auth": "Privacy requires an auth protocol and auth passphrase"
     }
   },
   "entity": {
