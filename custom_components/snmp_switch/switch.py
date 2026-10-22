@@ -1,6 +1,7 @@
 """Switch entities for SNMP Network Switch ports."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -12,10 +13,14 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, IF_OPER_STATUS_MAP, format_speed
+from .const import DOMAIN, IF_OPER_STATUS_MAP, POE_DETECTION_STATUS_MAP, format_speed
 from .coordinator import SNMPSwitchCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# The switch applies a PoE change asynchronously; reading back immediately can
+# return the old detection status, so wait briefly before refreshing.
+POE_REFRESH_DELAY = 1.0
 
 
 async def async_setup_entry(
@@ -35,6 +40,8 @@ async def async_setup_entry(
     if coordinator.data and "interfaces" in coordinator.data:
         for if_index in coordinator.data["interfaces"]:
             entities.append(SNMPPortSwitch(coordinator, entry, if_index))
+            if coordinator.get_poe(if_index) is not None:
+                entities.append(SNMPPoESwitch(coordinator, entry, if_index))
 
     async_add_entities(entities)
 
@@ -131,3 +138,58 @@ class SNMPPortSwitch(CoordinatorEntity[SNMPSwitchCoordinator], SwitchEntity):
             await self.coordinator.async_request_refresh()
         else:
             _LOGGER.error("Could not disable port %d", self._if_index)
+
+
+class SNMPPoESwitch(CoordinatorEntity[SNMPSwitchCoordinator], SwitchEntity):
+    """Switch entity to enable/disable PoE on a port (pethPsePortAdminEnable)."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "poe_switch"
+
+    def __init__(
+        self,
+        coordinator: SNMPSwitchCoordinator,
+        entry: ConfigEntry,
+        if_index: int,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._if_index = if_index
+        self._attr_unique_id = f"{entry.entry_id}_port_{if_index}_poe_switch"
+        self._attr_device_info = _device_info(entry)
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
+
+    @property
+    def is_on(self) -> bool | None:
+        poe = self.coordinator.get_poe(self._if_index)
+        return poe["admin_enable"] if poe else None
+
+    @property
+    def icon(self) -> str:
+        return "mdi:flash" if self.is_on else "mdi:flash-off"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        poe = self.coordinator.get_poe(self._if_index)
+        if not poe:
+            return {}
+        return {
+            "if_index": self._if_index,
+            "detection_status": POE_DETECTION_STATUS_MAP.get(poe.get("detection_status"), "unknown"),
+        }
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        if await self.coordinator.client.set_poe_port_enable(self._if_index, True):
+            _LOGGER.info("PoE enabled on port %d", self._if_index)
+            await asyncio.sleep(POE_REFRESH_DELAY)
+            await self.coordinator.async_refresh()
+        else:
+            _LOGGER.error("Could not enable PoE on port %d", self._if_index)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        if await self.coordinator.client.set_poe_port_enable(self._if_index, False):
+            _LOGGER.info("PoE disabled on port %d", self._if_index)
+            await asyncio.sleep(POE_REFRESH_DELAY)
+            await self.coordinator.async_refresh()
+        else:
+            _LOGGER.error("Could not disable PoE on port %d", self._if_index)
