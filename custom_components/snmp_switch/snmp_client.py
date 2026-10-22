@@ -98,6 +98,11 @@ from .const import (
     VIRTUAL_IF_TYPES,
     OID_POE_PORT_ADMIN_ENABLE,
     OID_POE_PORT_DETECTION_STATUS,
+    OID_BASE_PORT_IFINDEX,
+    OID_PORT_PVID,
+    OID_VLAN_STATIC_EGRESS,
+    OID_VLAN_STATIC_NAME,
+    OID_VLAN_STATIC_UNTAGGED,
     SNMP_VERSION_1,
     SNMP_VERSION_3,
     V3_AUTH_MD5,
@@ -356,8 +361,12 @@ class SNMPSwitchClient:
             _LOGGER.error("GET_RAW exception [%s] %s: %s: %r", self.host, oid, type(err).__name__, err, exc_info=True)
         return None
 
-    async def walk(self, oid: str) -> dict[str, str]:
-        """SNMP WALK via repeated next_cmd calls (pysnmp 7.x: next_cmd is a coroutine, not async generator)."""
+    async def walk(self, oid: str, raw_octets: bool = False) -> dict[str, str]:
+        """SNMP WALK via repeated next_cmd calls (pysnmp 7.x: next_cmd is a coroutine, not async generator).
+
+        raw_octets=True returns OctetString values as hex strings. prettyPrint()
+        renders printable bytes as text, which would corrupt port bitmaps.
+        """
         results: dict[str, str] = {}
         # Trailing dot ensures prefix match is exact (e.g. .1.2 won't match .1.20)
         oid_prefix = oid if oid.endswith(".") else oid + "."
@@ -384,7 +393,11 @@ class SNMPSwitchClient:
                     if not result_oid.startswith(oid_prefix):
                         stop = True
                         break
-                    results[result_oid] = varBind[1].prettyPrint()
+                    value = varBind[1]
+                    if raw_octets and isinstance(value, OctetString):
+                        results[result_oid] = value.asOctets().hex()
+                    else:
+                        results[result_oid] = value.prettyPrint()
                     current_var = ObjectType(ObjectIdentity(result_oid))
                 if stop:
                     break
@@ -579,3 +592,83 @@ class SNMPSwitchClient:
         return await self.set_integer(
             f"{OID_POE_PORT_ADMIN_ENABLE}.{group}.{port_index}", 1 if enable else 2
         )
+    async def get_vlans(self) -> dict[str, Any]:
+        """Read VLANs (Q-BRIDGE-MIB). Empty dicts if the switch has none.
+
+        Returns {"vlans": {vlan_id: {name, tagged_ports, untagged_ports}},
+                 "ports": {ifIndex: {pvid, untagged, tagged}}}
+        with ports expressed as ifIndex values.
+        """
+        names = await self.walk(OID_VLAN_STATIC_NAME)
+        egress = await self.walk(OID_VLAN_STATIC_EGRESS, raw_octets=True)
+        untagged = await self.walk(OID_VLAN_STATIC_UNTAGGED, raw_octets=True)
+        pvids = await self.walk(OID_PORT_PVID)
+        base_map = await self.walk(OID_BASE_PORT_IFINDEX)
+
+        def _last(oid: str) -> int | None:
+            try:
+                return int(oid.split(".")[-1])
+            except ValueError:
+                return None
+
+        base_to_if: dict[int, int] = {}
+        for oid, val in base_map.items():
+            base, idx = _last(oid), None
+            try:
+                idx = int(val)
+            except (ValueError, TypeError):
+                pass
+            if base is not None and idx is not None:
+                base_to_if[base] = idx
+
+        def _ports(hex_bitmap: str | None) -> set[int]:
+            """Decode a PortList bitmap (MSB of byte 0 = base port 1) to ifIndexes."""
+            if not hex_bitmap:
+                return set()
+            try:
+                data = bytes.fromhex(hex_bitmap)
+            except ValueError:
+                return set()
+            ports: set[int] = set()
+            for byte_i, byte in enumerate(data):
+                for bit in range(8):
+                    if byte & (0x80 >> bit):
+                        base = byte_i * 8 + bit + 1
+                        ports.add(base_to_if.get(base, base))
+            return ports
+
+        egress_m = {_last(o): v for o, v in egress.items()}
+        untagged_m = {_last(o): v for o, v in untagged.items()}
+
+        vlans: dict[int, dict[str, Any]] = {}
+        for oid, name in names.items():
+            vid = _last(oid)
+            if vid is None:
+                continue
+            members = _ports(egress_m.get(vid))
+            untag = _ports(untagged_m.get(vid)) & members
+            vlans[vid] = {
+                "name": name,
+                "untagged_ports": sorted(untag),
+                "tagged_ports": sorted(members - untag),
+            }
+
+        ports: dict[int, dict[str, Any]] = {}
+        for oid, val in pvids.items():
+            base = _last(oid)
+            try:
+                pvid = int(val)
+            except (ValueError, TypeError):
+                pvid = None
+            if base is not None:
+                ports.setdefault(base_to_if.get(base, base), {})["pvid"] = pvid or None
+        for vid, info in vlans.items():
+            for idx in info["untagged_ports"]:
+                ports.setdefault(idx, {}).setdefault("untagged", []).append(vid)
+            for idx in info["tagged_ports"]:
+                ports.setdefault(idx, {}).setdefault("tagged", []).append(vid)
+        for info in ports.values():
+            info.setdefault("pvid", None)
+            info["untagged"] = sorted(info.get("untagged", []))
+            info["tagged"] = sorted(info.get("tagged", []))
+        return {"vlans": vlans, "ports": ports}

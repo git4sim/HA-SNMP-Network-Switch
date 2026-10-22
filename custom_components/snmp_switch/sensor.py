@@ -65,6 +65,14 @@ async def async_setup_entry(
             if coordinator.get_poe(if_index) is not None:
                 entities.append(SNMPPoEStatusSensor(coordinator, entry, if_index))
 
+    # VLAN sensors (one per VLAN, plus per-port membership)
+    for vlan_id in coordinator.get_vlans():
+        entities.append(SNMPVlanSensor(coordinator, entry, vlan_id))
+    if coordinator.data and "interfaces" in coordinator.data:
+        for if_index in coordinator.data["interfaces"]:
+            if coordinator.get_port_vlans(if_index) is not None:
+                entities.append(SNMPPortVlanSensor(coordinator, entry, if_index))
+
     async_add_entities(entities)
 
 
@@ -295,6 +303,86 @@ class SNMPPoEStatusSensor(SNMPBaseSensor):
         if poe and poe.get("detection_status") == 3:
             return "mdi:flash"
         return "mdi:flash-off"
+
+
+def _vlan_label(vlans: dict[int, dict[str, Any]], vlan_id: int) -> str:
+    name = (vlans.get(vlan_id) or {}).get("name")
+    return f"{vlan_id} {name}" if name else str(vlan_id)
+
+
+class SNMPVlanSensor(SNMPBaseSensor):
+    """One VLAN (Q-BRIDGE-MIB): state is its name, attributes list member ports."""
+
+    _attr_translation_key = "vlan"
+    _attr_icon = "mdi:lan"
+
+    def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry, vlan_id: int) -> None:
+        super().__init__(coordinator, entry)
+        self._vlan_id = vlan_id
+        self._attr_unique_id = f"{entry.entry_id}_vlan_{vlan_id}"
+        self._attr_translation_placeholders = {"vlan_id": str(vlan_id)}
+
+    @property
+    def native_value(self) -> str | None:
+        vlan = self.coordinator.get_vlans().get(self._vlan_id)
+        return vlan["name"] if vlan else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        vlan = self.coordinator.get_vlans().get(self._vlan_id)
+        if not vlan:
+            return {}
+
+        def _names(indexes: list[int]) -> list[str]:
+            return [_port_label(self.coordinator, i) for i in indexes]
+
+        return {
+            "vlan_id": self._vlan_id,
+            "untagged_ports": _names(vlan["untagged_ports"]),
+            "tagged_ports": _names(vlan["tagged_ports"]),
+        }
+
+
+class SNMPPortVlanSensor(SNMPBaseSensor):
+    """A port's VLAN membership.
+
+    State is the native (untagged) VLAN plus the tagged VLAN ids, e.g.
+    "1 DEFAULT_VLAN_1; tagged: 10, 30, 35". Full names are in the attributes.
+    """
+
+    _attr_translation_key = "port_vlan"
+    _attr_icon = "mdi:lan"
+
+    def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry, if_index: int) -> None:
+        super().__init__(coordinator, entry)
+        self._if_index = if_index
+        self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_vlan"
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
+
+    @property
+    def native_value(self) -> str | None:
+        info = self.coordinator.get_port_vlans(self._if_index)
+        if not info:
+            return None
+        vlans = self.coordinator.get_vlans()
+        pvid = info.get("pvid")
+        value = "none" if pvid is None else _vlan_label(vlans, pvid)
+        if info["tagged"]:
+            value += "; tagged: " + ", ".join(str(v) for v in info["tagged"])
+        # HA states are limited to 255 characters.
+        return value if len(value) <= 255 else value[:254] + "…"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        info = self.coordinator.get_port_vlans(self._if_index)
+        if not info:
+            return {}
+        vlans = self.coordinator.get_vlans()
+        return {
+            "pvid": info.get("pvid"),
+            "untagged_vlans": [_vlan_label(vlans, v) for v in info["untagged"]],
+            "tagged_vlans": [_vlan_label(vlans, v) for v in info["tagged"]],
+        }
 
 
 # ── Port Traffic ─────────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ Monitor port status, traffic & errors — toggle ports — edit switch settings 
 - 🔌 **Per-port sensors** — operational status, RX/TX traffic (64-bit HC counters), error counters
 - 🔘 **Port switches** — enable/disable individual ports via `ifAdminStatus` SET
 - ⚡ **PoE control** — per-port PoE on/off switch and detection-status sensor (POWER-ETHERNET-MIB, RFC 3621); created only for ports on switches that report PoE
+- 🏷️ **VLANs** — a sensor per VLAN (Q-BRIDGE-MIB name, tagged/untagged member ports) and a per-port VLAN membership sensor (native VLAN + tagged VLAN ids)
 - 🔁 **Refresh button** — trigger an immediate SNMP poll
 - ⚙️ **Services** — `set_port_alias`, `set_sys_contact`, `set_sys_location`, `set_sys_name`
 - 🔐 **Full SNMPv3 USM** — MD5 / SHA / SHA-256 / SHA-512 auth · DES / AES-128 / AES-256 privacy
@@ -175,6 +176,8 @@ For each configured switch:
 | `switch.*_portX` | ifAdminStatus toggle *(write access required)* |
 | `switch.*_portX_poe` | PoE enable/disable (`pethPsePortAdminEnable`) *(write access; PoE ports only)* |
 | `sensor.*_portX_poe_status` | PoE detection status: disabled / searching / delivering_power / fault … *(PoE ports only)* |
+| `sensor.*_vlan_N` | VLAN name (state) with `untagged_ports` / `tagged_ports` attributes *(switches exposing Q-BRIDGE-MIB)* |
+| `sensor.*_portX_vlan` | Native VLAN plus tagged VLAN ids (e.g. `1 DEFAULT_VLAN_1; tagged: 10, 30`) *(switches exposing Q-BRIDGE-MIB)* |
 | `button.*_aktualisieren` | Trigger immediate poll |
 
 ---
