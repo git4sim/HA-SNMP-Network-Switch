@@ -79,6 +79,7 @@
         "title": "SNMP Switch Optionen",
         "data": {
           "scan_interval": "Abfrageintervall (Sekunden)",
+          "use_port_names": "Portname aus der Switch-Konfiguration als Port-Beschreibung verwenden",
           "port": "SNMP Port",
           "name": "Gerätename (leer = automatisch aus sysName)",
           "community_read": "Community String (Lesen)",

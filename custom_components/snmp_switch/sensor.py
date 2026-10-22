@@ -17,6 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CONF_USE_PORT_NAMES,
     DOMAIN,
     IF_ADMIN_STATUS_MAP,
     IF_OPER_STATUS_MAP,
@@ -99,6 +100,15 @@ class SNMPBaseSensor(CoordinatorEntity[SNMPSwitchCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._entry = entry
         self._attr_device_info = _device_info(entry)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Per-port sensors expose the switch-config port name as 'alias'."""
+        if_index = getattr(self, "_if_index", None)
+        if if_index is None:
+            return None
+        iface = self.coordinator.get_interface(if_index)
+        return {"alias": iface.get("alias", "")} if iface else None
 
 
 # ── System Sensors ──────────────────────────────────────────────────────────
@@ -363,7 +373,11 @@ class SNMPPortErrorSensor(SNMPBaseSensor):
 # ── Port Diagnostics ────────────────────────────────────────────────────────
 
 class SNMPPortDescriptionSensor(SNMPBaseSensor):
-    """Sensor for port description (ifDescr — hardware name)."""
+    """Sensor for port description (ifDescr — hardware name).
+
+    With the "use port names" option enabled, shows the name configured on
+    the switch (ifAlias) instead, falling back to ifDescr when it is empty.
+    """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "port_description"
@@ -379,6 +393,9 @@ class SNMPPortDescriptionSensor(SNMPBaseSensor):
     def native_value(self) -> str | None:
         iface = self.coordinator.get_interface(self._if_index)
         if iface:
+            if {**self._entry.data, **self._entry.options}.get(CONF_USE_PORT_NAMES):
+                # Name configured on the switch (ifAlias), e.g. "Office AP"
+                return iface.get("alias") or iface.get("description") or iface.get("name")
             return iface.get("description") or iface.get("name")
         return None
 

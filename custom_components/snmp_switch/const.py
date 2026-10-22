@@ -17,6 +17,7 @@ CONF_COMMUNITY_READ = "community_read"
 CONF_COMMUNITY_WRITE = "community_write"
 CONF_SNMP_VERSION = "snmp_version"
 CONF_SCAN_INTERVAL = "scan_interval"
+CONF_USE_PORT_NAMES = "use_port_names"
 
 # Config Keys — SNMPv3 specific
 CONF_V3_USERNAME = "v3_username"
