@@ -107,6 +107,11 @@ OID_IF_ALIAS = "1.3.6.1.2.1.31.1.1.1.18"
 OID_IF_HC_IN_OCTETS = "1.3.6.1.2.1.31.1.1.1.6"
 OID_IF_HC_OUT_OCTETS = "1.3.6.1.2.1.31.1.1.1.10"
 
+# ifType values that are not physical ports (IANAifType): software loopback,
+# propVirtual (e.g. VLAN SVIs on Aruba CX), tunnel, l2vlan, l3ipvlan.
+# Such interfaces are not switch ports and are left out of the port list.
+VIRTUAL_IF_TYPES = {24, 53, 131, 135, 136}
+
 # Interface Status Mappings
 IF_ADMIN_STATUS_MAP = {1: "up", 2: "down", 3: "testing"}
 IF_OPER_STATUS_MAP = {

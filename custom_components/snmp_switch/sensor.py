@@ -174,6 +174,10 @@ class SNMPPortCountSensor(SNMPBaseSensor):
 
     @property
     def native_value(self) -> int | None:
+        # Count the discovered ports; ifNumber also counts virtual interfaces
+        # (e.g. VLAN SVIs), which are not switch ports.
+        if self.coordinator.data and "interfaces" in self.coordinator.data:
+            return len(self.coordinator.data["interfaces"])
         val = self.coordinator.get_system_value("if_number")
         try:
             return int(val) if val is not None else None

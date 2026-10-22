@@ -94,6 +94,8 @@ except ImportError:
     USM_PRIV_CFB256_AES = None
 
 from .const import (
+    OID_IF_TYPE,
+    VIRTUAL_IF_TYPES,
     SNMP_VERSION_1,
     SNMP_VERSION_3,
     V3_AUTH_MD5,
@@ -438,6 +440,7 @@ class SNMPSwitchClient:
         names          = await self.walk(OID_IF_NAME)
         speeds         = await self.walk(OID_IF_HIGH_SPEED)
         aliases        = await self.walk(OID_IF_ALIAS)
+        if_types       = await self.walk(OID_IF_TYPE)
         hc_in          = await self.walk(OID_IF_HC_IN_OCTETS)
         hc_out         = await self.walk(OID_IF_HC_OUT_OCTETS)
 
@@ -451,6 +454,7 @@ class SNMPSwitchClient:
             return result
 
         desc_m   = _idx(descs)
+        type_m   = _idx(if_types)
         admin_m  = _idx(admin_statuses)
         oper_m   = _idx(oper_statuses)
         mac_m    = _idx(macs)
@@ -466,6 +470,12 @@ class SNMPSwitchClient:
 
         interfaces: dict[int, dict[str, Any]] = {}
         for idx in desc_m:
+            # Skip virtual interfaces (VLAN SVIs, loopbacks, tunnels): not ports.
+            try:
+                if int(type_m.get(idx, 0)) in VIRTUAL_IF_TYPES:
+                    continue
+            except (ValueError, TypeError):
+                pass
             try:
                 admin_val  = int(admin_m.get(idx, 2))
                 oper_val   = int(oper_m.get(idx, 2))
