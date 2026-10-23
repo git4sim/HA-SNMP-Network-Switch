@@ -77,8 +77,21 @@
     "step": {
       "init": {
         "title": "SNMP Switch Options",
+        "description": "Settings and SNMP credentials are separate, so changing a setting never touches the credentials.",
+        "menu_options": {
+          "settings": "Settings",
+          "credentials": "SNMP credentials"
+        }
+      },
+      "settings": {
+        "title": "Settings",
         "data": {
-          "scan_interval": "Poll interval (seconds)",
+          "scan_interval": "Poll interval (seconds)"
+        }
+      },
+      "credentials": {
+        "title": "SNMP credentials",
+        "data": {
           "community_write": "Community String (Write)",
           "v3_auth_key": "Update auth passphrase",
           "v3_priv_key": "Update privacy passphrase"

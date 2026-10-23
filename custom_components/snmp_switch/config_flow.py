@@ -385,12 +385,51 @@ class SNMPSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 # ── Options Flow ───────────────────────────────────────────────────────────
 
 class SNMPSwitchOptionsFlow(config_entries.OptionsFlow):
-    """Options flow — self.config_entry is set automatically by HA."""
+    """Options flow — self.config_entry is set automatically by HA.
+
+    A menu keeps everyday settings apart from the credentials, so changing a
+    setting never means re-entering (or even seeing) the SNMP credentials.
+    Each step saves on top of the existing options rather than replacing them.
+    """
+
+    def _current(self) -> dict[str, Any]:
+        return {**self.config_entry.data, **self.config_entry.options}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        current = {**self.config_entry.data, **self.config_entry.options}
+        return self.async_show_menu(
+            step_id="init", menu_options=["settings", "credentials"]
+        )
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Everyday settings — no credentials involved."""
+        current = self._current()
+
+        if user_input is not None:
+            return self.async_create_entry(
+                title="", data={**self.config_entry.options, **user_input}
+            )
+
+        schema = vol.Schema({
+            vol.Optional(CONF_SCAN_INTERVAL,
+                default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)):
+                vol.All(int, vol.Range(min=10, max=3600)),
+            vol.Optional(CONF_PORT,
+                default=current.get(CONF_PORT, DEFAULT_PORT)):
+                vol.All(int, vol.Range(min=1, max=65535)),
+            vol.Optional(CONF_NAME,
+                default=current.get(CONF_NAME, "")): str,
+        })
+        return self.async_show_form(step_id="settings", data_schema=schema)
+
+    async def async_step_credentials(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """SNMP credentials (community strings / SNMPv3 user)."""
+        current = self._current()
         version = current.get(CONF_SNMP_VERSION, SNMP_VERSION_2C)
         errors: dict[str, str] = {}
 
@@ -412,18 +451,12 @@ class SNMPSwitchOptionsFlow(config_entries.OptionsFlow):
                     errors[CONF_V3_AUTH_KEY] = "priv_requires_auth"
 
             if not errors:
-                return self.async_create_entry(title="", data=user_input)
+                return self.async_create_entry(
+                    title="", data={**self.config_entry.options, **user_input}
+                )
 
         if version == SNMP_VERSION_3:
             schema = vol.Schema({
-                vol.Optional(CONF_SCAN_INTERVAL,
-                    default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)):
-                    vol.All(int, vol.Range(min=10, max=3600)),
-                vol.Optional(CONF_PORT,
-                    default=current.get(CONF_PORT, DEFAULT_PORT)):
-                    vol.All(int, vol.Range(min=1, max=65535)),
-                vol.Optional(CONF_NAME,
-                    default=current.get(CONF_NAME, "")): str,
                 vol.Required(CONF_V3_USERNAME,
                     default=current.get(CONF_V3_USERNAME, "")): str,
                 vol.Optional(CONF_V3_AUTH_PROTOCOL,
@@ -441,14 +474,6 @@ class SNMPSwitchOptionsFlow(config_entries.OptionsFlow):
             })
         else:
             schema = vol.Schema({
-                vol.Optional(CONF_SCAN_INTERVAL,
-                    default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)):
-                    vol.All(int, vol.Range(min=10, max=3600)),
-                vol.Optional(CONF_PORT,
-                    default=current.get(CONF_PORT, DEFAULT_PORT)):
-                    vol.All(int, vol.Range(min=1, max=65535)),
-                vol.Optional(CONF_NAME,
-                    default=current.get(CONF_NAME, "")): str,
                 vol.Optional(CONF_COMMUNITY_READ,
                     default=current.get(CONF_COMMUNITY_READ, DEFAULT_COMMUNITY_READ)): str,
                 vol.Optional(CONF_COMMUNITY_WRITE,
@@ -456,5 +481,5 @@ class SNMPSwitchOptionsFlow(config_entries.OptionsFlow):
             })
 
         return self.async_show_form(
-            step_id="init", data_schema=schema, errors=errors,
+            step_id="credentials", data_schema=schema, errors=errors,
         )
