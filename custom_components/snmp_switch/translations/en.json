@@ -96,7 +96,10 @@
       "port_count": { "name": "Port Count" },
       "port_status": { "name": "{port_name} Status" },
       "port_admin_status": { "name": "{port_name} Admin Status" },
-      "port_poe_status": { "name": "{port_name} PoE Status" },
+      "port_poe_status": {
+        "name": "{port_name} PoE Status",
+        "state": { "disabled": "Disabled", "searching": "Searching", "delivering_power": "Delivering power", "fault": "Fault", "test": "Test", "other_fault": "Other fault", "unknown": "Unknown" }
+      },
       "port_rx": { "name": "{port_name} RX" },
       "port_tx": { "name": "{port_name} TX" },
       "port_rx_errors": { "name": "{port_name} RX Errors" },

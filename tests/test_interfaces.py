@@ -74,3 +74,10 @@ def test_port_count_falls_back_to_ifnumber_without_interface_data():
     coord.data = {"system": {"if_number": "17"}}
     entry = SimpleNamespace(entry_id="e1", data={"host": "192.0.2.1", "name": "sw"})
     assert sensor.SNMPPortCountSensor(coord, entry).native_value == 17
+
+
+def test_port_count_falls_back_to_ifnumber_when_interface_walk_is_empty():
+    coord = SNMPSwitchCoordinator(MagicMock(), MagicMock(), "sw", 30)
+    coord.data = {"system": {"if_number": "17"}, "interfaces": {}}
+    entry = SimpleNamespace(entry_id="e1", data={"host": "192.0.2.1", "name": "sw"})
+    assert sensor.SNMPPortCountSensor(coord, entry).native_value == 17

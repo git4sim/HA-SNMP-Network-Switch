@@ -30,8 +30,19 @@ def test_get_poe_ports_parses_table():
         detection={f"{DETECT}.1.1": "3", f"{DETECT}.1.2": "1"},
     )
     assert run(client.get_poe_ports()) == {
-        1: {"admin_enable": True, "detection_status": 3},
-        2: {"admin_enable": False, "detection_status": 1},
+        1: {"group": 1, "admin_enable": True, "detection_status": 3},
+        2: {"group": 1, "admin_enable": False, "detection_status": 1},
+    }
+
+
+def test_get_poe_ports_keeps_group_and_first_group_wins():
+    client = make_client(
+        admin={f"{ADMIN}.2.5": "1", f"{ADMIN}.1.5": "2", f"{ADMIN}.2.9": "1"},
+        detection={f"{DETECT}.2.5": "3", f"{DETECT}.1.5": "1", f"{DETECT}.2.9": "2"},
+    )
+    assert run(client.get_poe_ports()) == {
+        5: {"group": 1, "admin_enable": False, "detection_status": 1},
+        9: {"group": 2, "admin_enable": True, "detection_status": 2},
     }
 
 
@@ -56,6 +67,13 @@ def test_set_poe_port_enable_writes_expected_oid(enable, value):
     client.set_integer = AsyncMock(return_value=True)
     assert run(client.set_poe_port_enable(7, enable)) is True
     client.set_integer.assert_awaited_once_with(f"{ADMIN}.1.7", value)
+
+
+def test_set_poe_port_enable_uses_group():
+    client = make_client()
+    client.set_integer = AsyncMock(return_value=True)
+    assert run(client.set_poe_port_enable(7, True, 3)) is True
+    client.set_integer.assert_awaited_once_with(f"{ADMIN}.3.7", 1)
 
 
 def test_set_poe_port_enable_propagates_failure():
@@ -159,8 +177,15 @@ def test_poe_switch_actions_set_then_refresh(monkeypatch, method, enable):
     monkeypatch.setattr(switch, "POE_REFRESH_DELAY", 0)
     coord = entity_coordinator({1: {"admin_enable": not enable, "detection_status": 2}})
     run(getattr(switch.SNMPPoESwitch(coord, entry(), 1), method)())
-    coord.client.set_poe_port_enable.assert_awaited_once_with(1, enable)
+    coord.client.set_poe_port_enable.assert_awaited_once_with(1, enable, 1)
     assert coord.refresh_calls == 1
+
+
+def test_poe_switch_writes_to_its_group(monkeypatch):
+    monkeypatch.setattr(switch, "POE_REFRESH_DELAY", 0)
+    coord = entity_coordinator({2: {"group": 2, "admin_enable": False, "detection_status": 2}})
+    run(switch.SNMPPoESwitch(coord, entry(), 2).async_turn_on())
+    coord.client.set_poe_port_enable.assert_awaited_once_with(2, True, 2)
 
 
 def test_poe_switch_skips_refresh_on_failed_write(monkeypatch):

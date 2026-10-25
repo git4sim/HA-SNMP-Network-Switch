@@ -160,6 +160,11 @@ class SNMPPoESwitch(CoordinatorEntity[SNMPSwitchCoordinator], SwitchEntity):
         self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
 
     @property
+    def _group(self) -> int:
+        poe = self.coordinator.get_poe(self._if_index)
+        return poe.get("group", 1) if poe else 1
+
+    @property
     def is_on(self) -> bool | None:
         poe = self.coordinator.get_poe(self._if_index)
         return poe["admin_enable"] if poe else None
@@ -179,7 +184,7 @@ class SNMPPoESwitch(CoordinatorEntity[SNMPSwitchCoordinator], SwitchEntity):
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        if await self.coordinator.client.set_poe_port_enable(self._if_index, True):
+        if await self.coordinator.client.set_poe_port_enable(self._if_index, True, self._group):
             _LOGGER.info("PoE enabled on port %d", self._if_index)
             await asyncio.sleep(POE_REFRESH_DELAY)
             await self.coordinator.async_refresh()
@@ -187,7 +192,7 @@ class SNMPPoESwitch(CoordinatorEntity[SNMPSwitchCoordinator], SwitchEntity):
             _LOGGER.error("Could not enable PoE on port %d", self._if_index)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        if await self.coordinator.client.set_poe_port_enable(self._if_index, False):
+        if await self.coordinator.client.set_poe_port_enable(self._if_index, False, self._group):
             _LOGGER.info("PoE disabled on port %d", self._if_index)
             await asyncio.sleep(POE_REFRESH_DELAY)
             await self.coordinator.async_refresh()

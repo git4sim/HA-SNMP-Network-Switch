@@ -52,7 +52,8 @@ class UpdateFailed(Exception):
 
 
 class DataUpdateCoordinator:
-    def __init__(self, hass, logger, name=None, update_interval=None):
+    def __init__(self, hass, logger, config_entry=None, name=None, update_interval=None):
+        self.config_entry = config_entry
         self.hass, self.name, self.data = hass, name, None
         self.refresh_calls = 0
 
