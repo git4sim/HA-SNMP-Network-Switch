@@ -3,7 +3,7 @@
 All notable changes to this integration are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [3.0.6] - 2026-10-25
 
 ### Added
 - **PoE control and status** for switches that implement the POWER-ETHERNET-MIB (RFC 3621), per PoE-capable port ([#10]):
@@ -24,7 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Upgrade notes
 - Existing installs keep the old entities of virtual interfaces (e.g. `vlan1`) as *unavailable*. They can be deleted under *Settings → Devices & services → Entities*.
 
-[Unreleased]: https://github.com/git4sim/HA-SNMP-Network-Switch/compare/main...claude/focused-newton-f8dc9h
+[3.0.6]: https://github.com/git4sim/HA-SNMP-Network-Switch/pull/13
 [#8]: https://github.com/git4sim/HA-SNMP-Network-Switch/issues/8
 [#9]: https://github.com/git4sim/HA-SNMP-Network-Switch/pull/9
 [#10]: https://github.com/git4sim/HA-SNMP-Network-Switch/pull/10
