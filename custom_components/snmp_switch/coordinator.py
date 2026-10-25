@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -23,11 +24,13 @@ class SNMPSwitchCoordinator(DataUpdateCoordinator):
         client: SNMPSwitchClient,
         name: str,
         scan_interval: int,
+        config_entry: ConfigEntry | None = None,
     ) -> None:
         """Initialisierung."""
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=f"SNMP Switch {name}",
             update_interval=timedelta(seconds=scan_interval),
         )
@@ -40,6 +43,11 @@ class SNMPSwitchCoordinator(DataUpdateCoordinator):
         try:
             system_info = await self.client.get_system_info()
             interfaces = await self.client.get_interfaces()
+            try:
+                poe = await self.client.get_poe_ports()
+            except Exception as err:  # PoE is optional; never fail the poll
+                _LOGGER.debug("PoE query failed: %s", err)
+                poe = {}
 
             if system_info.get("description") is None:
                 raise UpdateFailed(f"Keine Verbindung zu {self.client.host}")
@@ -47,6 +55,7 @@ class SNMPSwitchCoordinator(DataUpdateCoordinator):
             return {
                 "system": system_info,
                 "interfaces": interfaces,
+                "poe": poe,
             }
         except UpdateFailed:
             raise
@@ -62,6 +71,12 @@ class SNMPSwitchCoordinator(DataUpdateCoordinator):
         """Interface-Daten nach Index abrufen."""
         if self.data and "interfaces" in self.data:
             return self.data["interfaces"].get(if_index)
+        return None
+
+    def get_poe(self, if_index: int) -> dict[str, Any] | None:
+        """PoE-Daten nach Port-Index abrufen (None wenn kein PoE-Port)."""
+        if self.data and "poe" in self.data:
+            return self.data["poe"].get(if_index)
         return None
 
     def get_system_value(self, key: str) -> Any:

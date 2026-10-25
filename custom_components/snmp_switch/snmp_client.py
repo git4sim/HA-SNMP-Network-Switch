@@ -94,6 +94,10 @@ except ImportError:
     USM_PRIV_CFB256_AES = None
 
 from .const import (
+    OID_IF_TYPE,
+    VIRTUAL_IF_TYPES,
+    OID_POE_PORT_ADMIN_ENABLE,
+    OID_POE_PORT_DETECTION_STATUS,
     SNMP_VERSION_1,
     SNMP_VERSION_3,
     V3_AUTH_MD5,
@@ -159,28 +163,49 @@ for _k, _v in {**_AUTH_PROTO_MAP, **_PRIV_PROTO_MAP}.items():
 # ── Shared SnmpEngine — created once in executor to avoid blocking the loop ──
 _ENGINE: SnmpEngine | None = None
 
+# MIB modules pysnmp otherwise loads lazily from disk (open()/listdir()) while
+# handling the first request, which blocks the event loop. "__*" are pysnmp's
+# instance MIBs, needed when a response is processed; the USM ones are needed
+# for SNMPv3. IF-MIB is deliberately absent: pysnmp doesn't ship it, and
+# asking for it raised MibNotFoundError.
+_PRELOAD_MIBS = (
+    "SNMPv2-SMI",
+    "SNMPv2-TC",
+    "SNMPv2-MIB",
+    "SNMPv2-TM",
+    "PYSNMP-SOURCE-MIB",
+    "PYSNMP-MIB",
+    "PYSNMP-USM-MIB",
+    "__SNMPv2-MIB",
+    "__PYSNMP-USM-MIB",
+)
+
 
 def _get_or_create_engine() -> SnmpEngine:
     """Return the shared SnmpEngine, creating it if needed (call in executor).
 
-    Also pre-loads common MIBs so the first real SNMP call doesn't trigger
-    blocking file I/O inside the asyncio event loop.
+    Also pre-loads the MIBs pysnmp needs so the first real SNMP call doesn't
+    trigger blocking file I/O inside the asyncio event loop. Each module is
+    loaded on its own so one that is missing in some pysnmp version doesn't
+    stop the rest from loading.
     """
     global _ENGINE
     if _ENGINE is None:
         _ENGINE = SnmpEngine()
-        try:
-            # Pre-load MIBs so the first real SNMP call doesn't trigger
-            # blocking file I/O inside the asyncio event loop.
-            # pysnmp 7.x uses snake_case; fall back to camelCase for compat.
-            get_builder = getattr(_ENGINE, "get_mib_builder", None) or getattr(_ENGINE, "getMibBuilder", None)
-            if get_builder:
-                builder = get_builder()
-                load = getattr(builder, "load_modules", None) or getattr(builder, "loadModules", None)
-                if load:
-                    load("SNMPv2-SMI", "SNMPv2-TC", "SNMPv2-MIB", "IF-MIB")
-        except Exception:
-            pass  # Non-fatal: MIBs will be loaded lazily on first SNMP call
+        # pysnmp 7.x uses snake_case; fall back to camelCase for compat.
+        get_builder = getattr(_ENGINE, "get_mib_builder", None) or getattr(_ENGINE, "getMibBuilder", None)
+        builder = get_builder() if get_builder else None
+        load = (
+            getattr(builder, "load_modules", None) or getattr(builder, "loadModules", None)
+            if builder
+            else None
+        )
+        if load:
+            for module in _PRELOAD_MIBS:
+                try:
+                    load(module)
+                except Exception as err:  # Non-fatal: loaded lazily on first use instead
+                    _LOGGER.debug("Could not preload MIB %s: %s", module, err)
     return _ENGINE
 
 
@@ -438,6 +463,7 @@ class SNMPSwitchClient:
         names          = await self.walk(OID_IF_NAME)
         speeds         = await self.walk(OID_IF_HIGH_SPEED)
         aliases        = await self.walk(OID_IF_ALIAS)
+        if_types       = await self.walk(OID_IF_TYPE)
         hc_in          = await self.walk(OID_IF_HC_IN_OCTETS)
         hc_out         = await self.walk(OID_IF_HC_OUT_OCTETS)
 
@@ -451,6 +477,7 @@ class SNMPSwitchClient:
             return result
 
         desc_m   = _idx(descs)
+        type_m   = _idx(if_types)
         admin_m  = _idx(admin_statuses)
         oper_m   = _idx(oper_statuses)
         mac_m    = _idx(macs)
@@ -466,6 +493,12 @@ class SNMPSwitchClient:
 
         interfaces: dict[int, dict[str, Any]] = {}
         for idx in desc_m:
+            # Skip virtual interfaces (VLAN SVIs, loopbacks, tunnels): not ports.
+            try:
+                if int(type_m.get(idx, 0)) in VIRTUAL_IF_TYPES:
+                    continue
+            except (ValueError, TypeError):
+                pass
             try:
                 admin_val  = int(admin_m.get(idx, 2))
                 oper_val   = int(oper_m.get(idx, 2))
@@ -503,3 +536,46 @@ class SNMPSwitchClient:
 
     async def set_sys_location(self, location: str) -> bool:
         return await self.set_string(OID_SYS_LOCATION, location)
+
+    async def get_poe_ports(self) -> dict[int, dict[str, Any]]:
+        """Read PoE state per port (POWER-ETHERNET-MIB). Empty if unsupported.
+
+        pethPsePortIndex is assumed to equal the ifIndex of the same port,
+        which holds on the switches this has been tested against. The group
+        index (pethPsePortGroupIndex) is kept so writes go to the right row.
+        If a port index occurs in several groups it can't be mapped to one
+        ifIndex, so only the lowest group is used.
+        """
+        admin = await self.walk(OID_POE_PORT_ADMIN_ENABLE)
+        detection = await self.walk(OID_POE_PORT_DETECTION_STATUS)
+
+        def _idx(d: dict) -> dict[tuple[int, int], int]:
+            result: dict[tuple[int, int], int] = {}
+            for oid, val in d.items():
+                try:
+                    group, port = oid.split(".")[-2:]
+                    result[(int(group), int(port))] = int(val)
+                except ValueError:
+                    pass
+            return result
+
+        admin_m = _idx(admin)
+        det_m = _idx(detection)
+        ports: dict[int, dict[str, Any]] = {}
+        for (group, port), val in sorted(admin_m.items()):
+            if port in ports:
+                _LOGGER.debug("PoE port %d also in group %d, ignored", port, group)
+                continue
+            ports[port] = {
+                "group": group,
+                "admin_enable": val == 1,
+                "detection_status": det_m.get((group, port)),
+            }
+        return ports
+
+    async def set_poe_port_enable(
+        self, port_index: int, enable: bool, group: int = 1
+    ) -> bool:
+        return await self.set_integer(
+            f"{OID_POE_PORT_ADMIN_ENABLE}.{group}.{port_index}", 1 if enable else 2
+        )

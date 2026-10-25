@@ -29,6 +29,7 @@ Monitor port status, traffic & errors — toggle ports — edit switch settings 
 - 📊 **System sensors** — sysDescr, sysUpTime, sysContact, sysName, sysLocation, port count
 - 🔌 **Per-port sensors** — operational status, RX/TX traffic (64-bit HC counters), error counters
 - 🔘 **Port switches** — enable/disable individual ports via `ifAdminStatus` SET
+- ⚡ **PoE control** — per-port PoE on/off switch and detection-status sensor (POWER-ETHERNET-MIB, RFC 3621); created only for ports on switches that report PoE
 - 🔁 **Refresh button** — trigger an immediate SNMP poll
 - ⚙️ **Services** — `set_port_alias`, `set_sys_contact`, `set_sys_location`, `set_sys_name`
 - 🔐 **Full SNMPv3 USM** — MD5 / SHA / SHA-256 / SHA-512 auth · DES / AES-128 / AES-256 privacy
@@ -172,6 +173,8 @@ For each configured switch:
 | `sensor.*_portX_tx` | ifHCOutOctets (64-bit) |
 | `sensor.*_portX_fehler` | in_errors + out_errors |
 | `switch.*_portX` | ifAdminStatus toggle *(write access required)* |
+| `switch.*_portX_poe` | PoE enable/disable (`pethPsePortAdminEnable`) *(write access; PoE ports only)* |
+| `sensor.*_portX_poe_status` | PoE detection status: disabled / searching / delivering_power / fault … *(PoE ports only)* |
 | `button.*_aktualisieren` | Trigger immediate poll |
 
 ---
