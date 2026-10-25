@@ -159,28 +159,49 @@ for _k, _v in {**_AUTH_PROTO_MAP, **_PRIV_PROTO_MAP}.items():
 # ── Shared SnmpEngine — created once in executor to avoid blocking the loop ──
 _ENGINE: SnmpEngine | None = None
 
+# MIB modules pysnmp otherwise loads lazily from disk (open()/listdir()) while
+# handling the first request, which blocks the event loop. "__*" are pysnmp's
+# instance MIBs, needed when a response is processed; the USM ones are needed
+# for SNMPv3. IF-MIB is deliberately absent: pysnmp doesn't ship it, and
+# asking for it raised MibNotFoundError.
+_PRELOAD_MIBS = (
+    "SNMPv2-SMI",
+    "SNMPv2-TC",
+    "SNMPv2-MIB",
+    "SNMPv2-TM",
+    "PYSNMP-SOURCE-MIB",
+    "PYSNMP-MIB",
+    "PYSNMP-USM-MIB",
+    "__SNMPv2-MIB",
+    "__PYSNMP-USM-MIB",
+)
+
 
 def _get_or_create_engine() -> SnmpEngine:
     """Return the shared SnmpEngine, creating it if needed (call in executor).
 
-    Also pre-loads common MIBs so the first real SNMP call doesn't trigger
-    blocking file I/O inside the asyncio event loop.
+    Also pre-loads the MIBs pysnmp needs so the first real SNMP call doesn't
+    trigger blocking file I/O inside the asyncio event loop. Each module is
+    loaded on its own so one that is missing in some pysnmp version doesn't
+    stop the rest from loading.
     """
     global _ENGINE
     if _ENGINE is None:
         _ENGINE = SnmpEngine()
-        try:
-            # Pre-load MIBs so the first real SNMP call doesn't trigger
-            # blocking file I/O inside the asyncio event loop.
-            # pysnmp 7.x uses snake_case; fall back to camelCase for compat.
-            get_builder = getattr(_ENGINE, "get_mib_builder", None) or getattr(_ENGINE, "getMibBuilder", None)
-            if get_builder:
-                builder = get_builder()
-                load = getattr(builder, "load_modules", None) or getattr(builder, "loadModules", None)
-                if load:
-                    load("SNMPv2-SMI", "SNMPv2-TC", "SNMPv2-MIB", "IF-MIB")
-        except Exception:
-            pass  # Non-fatal: MIBs will be loaded lazily on first SNMP call
+        # pysnmp 7.x uses snake_case; fall back to camelCase for compat.
+        get_builder = getattr(_ENGINE, "get_mib_builder", None) or getattr(_ENGINE, "getMibBuilder", None)
+        builder = get_builder() if get_builder else None
+        load = (
+            getattr(builder, "load_modules", None) or getattr(builder, "loadModules", None)
+            if builder
+            else None
+        )
+        if load:
+            for module in _PRELOAD_MIBS:
+                try:
+                    load(module)
+                except Exception as err:  # Non-fatal: loaded lazily on first use instead
+                    _LOGGER.debug("Could not preload MIB %s: %s", module, err)
     return _ENGINE
 
 
