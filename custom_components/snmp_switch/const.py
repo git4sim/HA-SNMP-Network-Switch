@@ -112,6 +112,17 @@ OID_IF_HC_OUT_OCTETS = "1.3.6.1.2.1.31.1.1.1.10"
 # Such interfaces are not switch ports and are left out of the port list.
 VIRTUAL_IF_TYPES = {24, 53, 131, 135, 136}
 
+# Power Ethernet MIB (RFC 3621) — PoE
+# Table index is <pethPsePortGroupIndex>.<pethPsePortIndex>
+OID_POE_PORT_ADMIN_ENABLE = "1.3.6.1.2.1.105.1.1.1.3"
+OID_POE_PORT_DETECTION_STATUS = "1.3.6.1.2.1.105.1.1.1.6"
+
+# pethPsePortDetectionStatus values
+POE_DETECTION_STATUS_MAP = {
+    1: "disabled", 2: "searching", 3: "delivering_power",
+    4: "fault", 5: "test", 6: "other_fault",
+}
+
 # Interface Status Mappings
 IF_ADMIN_STATUS_MAP = {1: "up", 2: "down", 3: "testing"}
 IF_OPER_STATUS_MAP = {

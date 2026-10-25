@@ -106,6 +106,7 @@
       "port_count": { "name": "Anzahl Ports" },
       "port_status": { "name": "{port_name} Status" },
       "port_admin_status": { "name": "{port_name} Admin-Status" },
+      "port_poe_status": { "name": "{port_name} PoE-Status" },
       "port_rx": { "name": "{port_name} RX" },
       "port_tx": { "name": "{port_name} TX" },
       "port_rx_errors": { "name": "{port_name} RX-Fehler" },
@@ -115,7 +116,8 @@
       "port_mac": { "name": "{port_name} MAC" }
     },
     "switch": {
-      "port_switch": { "name": "{port_name}" }
+      "port_switch": { "name": "{port_name}" },
+      "poe_switch": { "name": "{port_name} PoE" }
     },
     "text": {
       "sys_contact_text": { "name": "Kontakt" },

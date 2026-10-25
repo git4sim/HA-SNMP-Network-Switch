@@ -20,6 +20,7 @@ from .const import (
     DOMAIN,
     IF_ADMIN_STATUS_MAP,
     IF_OPER_STATUS_MAP,
+    POE_DETECTION_STATUS_MAP,
     format_speed,
 )
 from .coordinator import SNMPSwitchCoordinator
@@ -61,6 +62,8 @@ async def async_setup_entry(
                 SNMPPortSpeedSensor(coordinator, entry, if_index),
                 SNMPPortMacSensor(coordinator, entry, if_index),
             ])
+            if coordinator.get_poe(if_index) is not None:
+                entities.append(SNMPPoEStatusSensor(coordinator, entry, if_index))
 
     async_add_entities(entities)
 
@@ -264,6 +267,34 @@ class SNMPPortAdminStatusSensor(SNMPBaseSensor):
         if iface and iface.get("admin_status") == 1:
             return "mdi:ethernet-cable"
         return "mdi:ethernet-cable-off"
+
+
+class SNMPPoEStatusSensor(SNMPBaseSensor):
+    """PoE detection status (pethPsePortDetectionStatus)."""
+
+    _attr_translation_key = "port_poe_status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = list(POE_DETECTION_STATUS_MAP.values()) + ["unknown"]
+
+    def __init__(self, coordinator: SNMPSwitchCoordinator, entry: ConfigEntry, if_index: int) -> None:
+        super().__init__(coordinator, entry)
+        self._if_index = if_index
+        self._attr_unique_id = f"{entry.entry_id}_if_{if_index}_poe_status"
+        self._attr_translation_placeholders = {"port_name": _port_label(coordinator, if_index)}
+
+    @property
+    def native_value(self) -> str | None:
+        poe = self.coordinator.get_poe(self._if_index)
+        if poe:
+            return POE_DETECTION_STATUS_MAP.get(poe.get("detection_status"), "unknown")
+        return None
+
+    @property
+    def icon(self) -> str:
+        poe = self.coordinator.get_poe(self._if_index)
+        if poe and poe.get("detection_status") == 3:
+            return "mdi:flash"
+        return "mdi:flash-off"
 
 
 # ── Port Traffic ─────────────────────────────────────────────────────────────

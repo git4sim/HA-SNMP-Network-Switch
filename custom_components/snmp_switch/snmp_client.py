@@ -96,6 +96,8 @@ except ImportError:
 from .const import (
     OID_IF_TYPE,
     VIRTUAL_IF_TYPES,
+    OID_POE_PORT_ADMIN_ENABLE,
+    OID_POE_PORT_DETECTION_STATUS,
     SNMP_VERSION_1,
     SNMP_VERSION_3,
     V3_AUTH_MD5,
@@ -534,3 +536,34 @@ class SNMPSwitchClient:
 
     async def set_sys_location(self, location: str) -> bool:
         return await self.set_string(OID_SYS_LOCATION, location)
+
+    async def get_poe_ports(self) -> dict[int, dict[str, Any]]:
+        """Read PoE state per port (POWER-ETHERNET-MIB). Empty if unsupported.
+
+        pethPsePortIndex is assumed to equal the ifIndex of the same port,
+        which holds on the switches this has been tested against.
+        """
+        admin = await self.walk(OID_POE_PORT_ADMIN_ENABLE)
+        detection = await self.walk(OID_POE_PORT_DETECTION_STATUS)
+
+        def _idx(d: dict) -> dict[int, int]:
+            result: dict[int, int] = {}
+            for oid, val in d.items():
+                try:
+                    result[int(oid.split(".")[-1])] = int(val)
+                except (ValueError, IndexError):
+                    pass
+            return result
+
+        admin_m = _idx(admin)
+        det_m = _idx(detection)
+        return {
+            idx: {"admin_enable": val == 1, "detection_status": det_m.get(idx)}
+            for idx, val in admin_m.items()
+        }
+
+    async def set_poe_port_enable(self, port_index: int, enable: bool) -> bool:
+        # Group index is 1 on single-unit/non-stacked switches.
+        return await self.set_integer(
+            f"{OID_POE_PORT_ADMIN_ENABLE}.1.{port_index}", 1 if enable else 2
+        )
