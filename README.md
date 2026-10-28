@@ -30,6 +30,7 @@ Monitor port status, traffic & errors — toggle ports — edit switch settings 
 - 🔌 **Per-port sensors** — operational status, RX/TX traffic (64-bit HC counters), error counters
 - 🔘 **Port switches** — enable/disable individual ports via `ifAdminStatus` SET
 - ⚡ **PoE control** — per-port PoE on/off switch and detection-status sensor (POWER-ETHERNET-MIB, RFC 3621); created only for ports on switches that report PoE
+- 🏷️ **Port names** — every per-port entity exposes the name configured on the switch (`ifAlias`) as an `alias` attribute; an option can show it as the port *Description* instead of the interface id
 - 🔁 **Refresh button** — trigger an immediate SNMP poll
 - ⚙️ **Services** — `set_port_alias`, `set_sys_contact`, `set_sys_location`, `set_sys_name`
 - 🔐 **Full SNMPv3 USM** — MD5 / SHA / SHA-256 / SHA-512 auth · DES / AES-128 / AES-256 privacy
