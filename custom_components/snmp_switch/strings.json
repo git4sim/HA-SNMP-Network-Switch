@@ -110,6 +110,8 @@
         "name": "{port_name} PoE Status",
         "state": { "disabled": "Disabled", "searching": "Searching", "delivering_power": "Delivering power", "fault": "Fault", "test": "Test", "other_fault": "Other fault", "unknown": "Unknown" }
       },
+      "port_vlan": { "name": "{port_name} VLAN" },
+      "vlan": { "name": "VLAN {vlan_id}" },
       "port_rx": { "name": "{port_name} RX" },
       "port_tx": { "name": "{port_name} TX" },
       "port_rx_errors": { "name": "{port_name} RX Errors" },

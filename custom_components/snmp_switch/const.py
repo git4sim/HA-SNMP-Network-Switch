@@ -122,6 +122,13 @@ POE_DETECTION_STATUS_MAP = {
     1: "disabled", 2: "searching", 3: "delivering_power",
     4: "fault", 5: "test", 6: "other_fault",
 }
+# Q-BRIDGE-MIB (RFC 4363) — VLANs. Tables are indexed by VLAN id; the port
+# bitmaps are indexed by dot1dBasePort (BRIDGE-MIB), mapped to ifIndex below.
+OID_VLAN_STATIC_NAME = "1.3.6.1.2.1.17.7.1.4.3.1.1"
+OID_VLAN_STATIC_EGRESS = "1.3.6.1.2.1.17.7.1.4.3.1.2"
+OID_VLAN_STATIC_UNTAGGED = "1.3.6.1.2.1.17.7.1.4.3.1.4"
+OID_PORT_PVID = "1.3.6.1.2.1.17.7.1.4.5.1.1"
+OID_BASE_PORT_IFINDEX = "1.3.6.1.2.1.17.1.4.1.2"
 
 # Interface Status Mappings
 IF_ADMIN_STATUS_MAP = {1: "up", 2: "down", 3: "testing"}

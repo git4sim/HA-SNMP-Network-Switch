@@ -48,6 +48,11 @@ class SNMPSwitchCoordinator(DataUpdateCoordinator):
             except Exception as err:  # PoE is optional; never fail the poll
                 _LOGGER.debug("PoE query failed: %s", err)
                 poe = {}
+            try:
+                vlan_data = await self.client.get_vlans()
+            except Exception as err:  # VLAN info is optional; never fail the poll
+                _LOGGER.debug("VLAN query failed: %s", err)
+                vlan_data = {"vlans": {}, "ports": {}}
 
             if system_info.get("description") is None:
                 raise UpdateFailed(f"Keine Verbindung zu {self.client.host}")
@@ -56,6 +61,8 @@ class SNMPSwitchCoordinator(DataUpdateCoordinator):
                 "system": system_info,
                 "interfaces": interfaces,
                 "poe": poe,
+                "vlans": vlan_data["vlans"],
+                "port_vlans": vlan_data["ports"],
             }
         except UpdateFailed:
             raise
@@ -77,6 +84,18 @@ class SNMPSwitchCoordinator(DataUpdateCoordinator):
         """PoE-Daten nach Port-Index abrufen (None wenn kein PoE-Port)."""
         if self.data and "poe" in self.data:
             return self.data["poe"].get(if_index)
+        return None
+
+    def get_vlans(self) -> dict[int, dict[str, Any]]:
+        """Alle VLANs {vlan_id: {name, tagged_ports, untagged_ports}}."""
+        if self.data and "vlans" in self.data:
+            return self.data["vlans"]
+        return {}
+
+    def get_port_vlans(self, if_index: int) -> dict[str, Any] | None:
+        """VLAN-Mitgliedschaft eines Ports {pvid, untagged, tagged}."""
+        if self.data and "port_vlans" in self.data:
+            return self.data["port_vlans"].get(if_index)
         return None
 
     def get_system_value(self, key: str) -> Any:
